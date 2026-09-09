@@ -55,8 +55,7 @@ app.use(cors({
       callback(null, true);
     } else {
       callback(null, true); // Em produção aceita tudo por ora
-    }
-  },
+    }  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
