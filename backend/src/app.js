@@ -44,11 +44,19 @@ app.use(helmet({
 
 // ─── CORS ────────────────────────────────────────────────────
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ],
+  origin: function(origin, callback) {
+    const allowed = [
+      process.env.FRONTEND_URL || 'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5173',
+    ];
+    // Aceita qualquer subdomínio do Vercel
+    if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Em produção aceita tudo por ora
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

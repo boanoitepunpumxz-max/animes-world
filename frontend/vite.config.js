@@ -15,6 +15,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    // Proxy local apenas para dev
   },
   build: {
     outDir: 'dist',
