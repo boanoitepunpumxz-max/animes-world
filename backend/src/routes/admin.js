@@ -1,4 +1,15 @@
-const express = require('express');
+psql.exe : psql: erro: a conexπo com o servidor em 
+"ep-icy-feather-axnteatt.c-4.us-east-2.aws.neon.tech" (13.58.18.166), porta 5432 falhou: o servidor 
+fechou a conexπo de forma nπo esperada
+No linha:1 caractere:1
++ & $PSQL -h "ep-icy-feather-axnteatt.c-4.us-east-2.aws.neon.tech" -p 5 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (psql: erro: a c...ma nπo esperada:String) [], RemoteExce 
+   ption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+        Isso provavelmente significa que o servidor     foi encerrado de forma nπo normal antes ou
+        durante o processamento da solicitaτπo.const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const ctrl = require('../controllers/adminController');
