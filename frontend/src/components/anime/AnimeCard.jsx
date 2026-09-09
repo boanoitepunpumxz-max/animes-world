@@ -8,7 +8,9 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 function getImageUrl(url) {
   if (!url) return PLACEHOLDER;
-  // Em produção usa o proxy para evitar bloqueios CORS
+  // MAL CDN — funciona direto sem proxy
+  if (url.includes('myanimelist.net')) return url;
+  // AniList precisa de proxy em produção
   if (API_URL && url.includes('anilist.co')) {
     return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
   }

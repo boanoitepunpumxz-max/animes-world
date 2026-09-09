@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 const API_URL = import.meta.env.VITE_API_URL || '';
 function proxyImg(url) {
   if (!url) return '';
+  if (url.includes('myanimelist.net')) return url; // MAL CDN funciona direto
   if (API_URL && url.includes('anilist.co')) {
     return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
   }

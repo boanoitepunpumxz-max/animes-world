@@ -9,7 +9,11 @@ router.get('/image', async (req, res) => {
   if (!url) return res.status(400).send('URL obrigatória');
 
   // Só permite domínios confiáveis
-  const allowed = ['s4.anilist.co', 'anilist.co', 'cdn.anilist.co'];
+  const allowed = [
+    's4.anilist.co', 'anilist.co', 'cdn.anilist.co',
+    'cdn.myanimelist.net', 'myanimelist.net',
+    'img1.ak.crunchyroll.com',
+  ];
   try {
     const parsed = new URL(url);
     if (!allowed.some(d => parsed.hostname.endsWith(d))) {
