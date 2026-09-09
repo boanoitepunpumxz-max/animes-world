@@ -28,18 +28,9 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-      mediaSrc: ["'self'", 'blob:', 'https:'],
-      frameSrc: ["'self'", 'https:'],
-      connectSrc: ["'self'", 'https:'],
-    },
-  },
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // ─── CORS ────────────────────────────────────────────────────

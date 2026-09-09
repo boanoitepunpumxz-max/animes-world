@@ -44,6 +44,8 @@ export default function HeroBanner({ animes = [] }) {
         <img
           src={anime.banner_url || anime.background_url || anime.cover_url}
           alt=""
+          referrerPolicy="no-referrer"
+          onError={(e) => { e.target.onerror = null; e.target.style.display='none'; }}
           className="w-full h-full object-cover object-top transition-opacity duration-700"
           key={anime.id}
         />

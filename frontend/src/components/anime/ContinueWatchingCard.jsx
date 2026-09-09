@@ -15,8 +15,11 @@ export default function ContinueWatchingCard({ item }) {
         {/* Thumbnail */}
         <div className="relative aspect-video overflow-hidden bg-aw-border">
           <img
-            src={cover_url || '/placeholder-anime.jpg'}
+            src={cover_url || ''}
             alt={title}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(e) => { e.target.onerror = null; e.target.style.opacity='0'; }}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors flex items-center justify-center">
