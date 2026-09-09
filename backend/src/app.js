@@ -17,6 +17,7 @@ const watchRoutes = require('./routes/watch');
 const notificationRoutes = require('./routes/notifications');
 const supportRoutes = require('./routes/support');
 const healthRoutes = require('./routes/health');
+const proxyRoutes = require('./routes/proxy');
 
 const { requestLogger } = require('./middleware/requestLogger');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -77,6 +78,7 @@ app.use(requestLogger);
 
 // ─── Rotas Públicas ──────────────────────────────────────────
 app.use('/api/health', healthRoutes);
+app.use('/api/proxy', proxyRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/anime', animeRoutes);
 app.use('/api/genres', genreRoutes);

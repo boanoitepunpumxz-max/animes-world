@@ -2,8 +2,18 @@ import { Link } from 'react-router-dom';
 import { RiStarFill, RiPlayCircleFill } from 'react-icons/ri';
 import ProgressBar from '../ui/ProgressBar';
 
-// Fallback SVG inline quando a imagem falha
 const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%2316161f'/%3E%3Ctext x='100' y='155' font-family='sans-serif' font-size='14' fill='%23475569' text-anchor='middle'%3EAW%3C/text%3E%3C/svg%3E";
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+function getImageUrl(url) {
+  if (!url) return PLACEHOLDER;
+  // Em produção usa o proxy para evitar bloqueios CORS
+  if (API_URL && url.includes('anilist.co')) {
+    return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 
 export default function AnimeCard({ anime, progress, showProgress = false, size = 'md' }) {
   const { slug, title, title_english, cover_url, year, type, score, status, episodes_count, genres } = anime;
@@ -28,12 +38,11 @@ export default function AnimeCard({ anime, progress, showProgress = false, size 
         {/* Capa */}
         <div className="relative aspect-[2/3] overflow-hidden bg-aw-border">
           <img
-            src={cover_url || PLACEHOLDER}
+            src={getImageUrl(cover_url)}
             alt={title}
             loading="lazy"
             onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            referrerPolicy="no-referrer"
           />
 
           {/* Overlay hover */}

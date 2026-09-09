@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+function proxyImg(url) {
+  if (!url) return '';
+  if (API_URL && url.includes('anilist.co')) {
+    return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 import { Link } from 'react-router-dom';
 import { RiPlayFill, RiAddLine, RiCheckLine, RiStarFill, RiArrowLeftSLine, RiArrowRightSLine, RiInformationLine } from 'react-icons/ri';
 import { userAPI } from '../../services/api';
@@ -42,9 +51,8 @@ export default function HeroBanner({ animes = [] }) {
       {/* Background */}
       <div className="absolute inset-0">
         <img
-          src={anime.banner_url || anime.background_url || anime.cover_url}
+          src={proxyImg(anime.banner_url || anime.background_url || anime.cover_url)}
           alt=""
-          referrerPolicy="no-referrer"
           onError={(e) => { e.target.onerror = null; e.target.style.display='none'; }}
           className="w-full h-full object-cover object-top transition-opacity duration-700"
           key={anime.id}
