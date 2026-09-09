@@ -12,7 +12,7 @@ async function start() {
       startSyncJob();
     }
     app.listen(PORT, () => {
-      console.log(`\n🚀 ANIMES WORLD Backend rodando na porta ${PORT}`);
+      console.log(`\n🚀 ANIMES WORLD v1.1 Backend rodando na porta ${PORT}`);
       console.log(`   Ambiente: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   URL: http://localhost:${PORT}\n`);
     });
