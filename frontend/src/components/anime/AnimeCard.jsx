@@ -3,56 +3,61 @@ import { RiStarFill, RiPlayCircleFill } from 'react-icons/ri';
 import ProgressBar from '../ui/ProgressBar';
 
 const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%2316161f'/%3E%3Ctext x='100' y='155' font-family='sans-serif' font-size='14' fill='%23475569' text-anchor='middle'%3EAW%3C/text%3E%3C/svg%3E";
-
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-function getImageUrl(url) {
-  if (!url) return PLACEHOLDER;
-  // MAL CDN — funciona direto sem proxy
-  if (url.includes('myanimelist.net')) return url;
-  // AniList precisa de proxy em produção
-  if (API_URL && url.includes('anilist.co')) {
-    return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
+// Para animes com MAL ID (external_id), usa o proxy que resolve via Kitsu
+// Para outros, usa a URL diretamente
+function getCoverUrl(anime) {
+  const { cover_url, external_id } = anime;
+  // Se tem external_id (MAL ID), usa o proxy que busca no Kitsu
+  if (external_id && API_URL) {
+    return `${API_URL}/api/proxy/image?mal_id=${external_id}`;
   }
-  return url;
+  // Fallback: URL direta
+  return cover_url || PLACEHOLDER;
 }
 
-export default function AnimeCard({ anime, progress, showProgress = false, size = 'md' }) {
-  const { slug, title, title_english, cover_url, year, type, score, status, episodes_count, genres } = anime;
+export default function AnimeCard({ anime, progress, showProgress = false }) {
+  const {
+    slug, title, title_english, year, type,
+    score, status, episodes_count, genres,
+  } = anime;
 
   const statusColors = {
     RELEASING: 'bg-green-500',
     FINISHED:  'bg-blue-500',
     HIATUS:    'bg-yellow-500',
     CANCELLED: 'bg-red-500',
+    NOT_YET_AIRED: 'bg-gray-500',
   };
-
   const statusLabels = {
     RELEASING: 'Em andamento',
     FINISHED:  'Finalizado',
     HIATUS:    'Hiato',
     CANCELLED: 'Cancelado',
+    NOT_YET_AIRED: 'Em breve',
   };
 
   return (
     <Link to={`/anime/${slug}`} className="group block">
       <div className="aw-card transition-all duration-300 group-hover:border-aw-purple/50 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:shadow-purple-900/20">
+
         {/* Capa */}
         <div className="relative aspect-[2/3] overflow-hidden bg-aw-border">
           <img
-            src={getImageUrl(cover_url)}
-            alt={title}
+            src={getCoverUrl(anime)}
+            alt={title_english || title}
             loading="lazy"
             onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
 
-          {/* Overlay hover */}
+          {/* Play overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
             <RiPlayCircleFill className="text-white text-5xl drop-shadow-lg" />
           </div>
 
-          {/* Status badge */}
+          {/* Status */}
           {status && (
             <div className="absolute top-2 left-2">
               <span className={`${statusColors[status] || 'bg-gray-500'} text-white text-xs px-2 py-0.5 rounded-md font-medium`}>
@@ -69,9 +74,9 @@ export default function AnimeCard({ anime, progress, showProgress = false, size 
             </div>
           )}
 
-          {/* Progress bar no hover se tiver progresso */}
-          {showProgress && progress && (
-            <div className="absolute bottom-0 left-0 right-0 px-2 pb-2">
+          {/* Progress bar */}
+          {showProgress && progress && progress.percentage > 0 && (
+            <div className="absolute bottom-0 left-0 right-0">
               <ProgressBar percentage={progress.percentage} height={3} />
             </div>
           )}

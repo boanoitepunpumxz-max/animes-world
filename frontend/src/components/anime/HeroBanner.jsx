@@ -1,18 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
-function proxyImg(url) {
-  if (!url) return '';
-  if (url.includes('myanimelist.net')) return url; // MAL CDN funciona direto
-  if (API_URL && url.includes('anilist.co')) {
-    return `${API_URL}/api/proxy/image?url=${encodeURIComponent(url)}`;
-  }
-  return url;
-}
 import { Link } from 'react-router-dom';
 import { RiPlayFill, RiAddLine, RiCheckLine, RiStarFill, RiArrowLeftSLine, RiArrowRightSLine, RiInformationLine } from 'react-icons/ri';
 import { userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+// Resolve a URL da imagem do hero — usa proxy com MAL ID quando disponível
+function heroImg(anime, type = 'cover') {
+  if (!anime) return '';
+  // Se tem external_id (MAL), usa proxy Kitsu
+  if (anime.external_id && API_URL) {
+    if (type === 'banner') {
+      return `${API_URL}/api/proxy/image?mal_id=${anime.external_id}&type=banner`;
+    }
+    return `${API_URL}/api/proxy/image?mal_id=${anime.external_id}`;
+  }
+  // Fallback direto
+  return anime.banner_url || anime.background_url || anime.cover_url || '';
+}
 import toast from 'react-hot-toast';
 
 export default function HeroBanner({ animes = [] }) {
@@ -52,9 +59,15 @@ export default function HeroBanner({ animes = [] }) {
       {/* Background */}
       <div className="absolute inset-0">
         <img
-          src={proxyImg(anime.banner_url || anime.background_url || anime.cover_url)}
+          src={heroImg(anime, 'banner')}
           alt=""
-          onError={(e) => { e.target.onerror = null; e.target.style.display='none'; }}
+          onError={(e) => {
+            e.target.onerror = null;
+            // Se banner falhou, tenta a capa
+            const coverUrl = heroImg(anime, 'cover');
+            if (e.target.src !== coverUrl) e.target.src = coverUrl;
+            else e.target.style.display = 'none';
+          }}
           className="w-full h-full object-cover object-top transition-opacity duration-700"
           key={anime.id}
         />
