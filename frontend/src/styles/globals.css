@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-aw-bg text-aw-text font-sans;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0a0a0f; }
+  ::-webkit-scrollbar-thumb { background: #a855f7; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #c084fc; }
+
+  ::selection { background: rgba(168, 85, 247, 0.3); color: #fff; }
+}
+
+@layer components {
+  .aw-btn-primary {
+    @apply bg-aw-gradient text-white font-semibold px-6 py-2.5 rounded-lg
+           transition-all duration-200 hover:opacity-90 hover:scale-105
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           disabled:hover:scale-100;
+    background-image: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  }
+
+  .aw-btn-secondary {
+    @apply bg-aw-card border border-aw-border text-aw-text font-semibold px-6 py-2.5 rounded-lg
+           transition-all duration-200 hover:border-aw-purple hover:text-aw-purple
+           active:scale-95;
+  }
+
+  .aw-btn-ghost {
+    @apply text-aw-muted hover:text-aw-text transition-colors duration-200 px-3 py-2 rounded-lg
+           hover:bg-white/5;
+  }
+
+  .aw-card {
+    @apply bg-aw-card border border-aw-border rounded-xl overflow-hidden;
+  }
+
+  .aw-glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl;
+  }
+
+  .aw-input {
+    @apply w-full bg-white/5 border border-aw-border rounded-lg px-4 py-3 text-aw-text
+           placeholder:text-aw-dim focus:outline-none focus:border-aw-purple
+           focus:ring-1 focus:ring-aw-purple transition-all duration-200;
+  }
+
+  .aw-label {
+    @apply block text-sm font-medium text-aw-muted mb-1.5;
+  }
+
+  .neon-text {
+    text-shadow: 0 0 10px rgba(168,85,247,0.8), 0 0 20px rgba(168,85,247,0.4);
+  }
+
+  .neon-border {
+    box-shadow: 0 0 0 1px rgba(168,85,247,0.4), 0 0 15px rgba(168,85,247,0.15);
+  }
+
+  .skeleton {
+    @apply animate-shimmer rounded;
+    background: linear-gradient(90deg, #16161f 25%, #1e1e2e 50%, #16161f 75%);
+    background-size: 1000px 100%;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Animações de entrada de página */
+.page-enter { animation: fadeIn 0.3s ease-out; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Progress bar */
+.progress-bar {
+  background: linear-gradient(90deg, #a855f7, #ec4899);
+  transition: width 0.3s ease;
+}
