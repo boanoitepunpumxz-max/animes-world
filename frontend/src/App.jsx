@@ -26,6 +26,8 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const WatchlistPage = lazy(() => import('./pages/WatchlistPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const MyTicketsPage = lazy(() => import('./pages/MyTicketsPage'));
+const TicketChatPage = lazy(() => import('./pages/TicketChatPage'));
 
 // Info
 const SupportPage = lazy(() => import('./pages/SupportPage'));
@@ -94,6 +96,8 @@ function AppRoutes() {
         <Route path="/historico" element={<PrivateRoute><HistoryPage /></PrivateRoute>} />
         <Route path="/minha-lista" element={<PrivateRoute><WatchlistPage /></PrivateRoute>} />
         <Route path="/notificacoes" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
+        <Route path="/meus-tickets" element={<PrivateRoute><MyTicketsPage /></PrivateRoute>} />
+        <Route path="/meus-tickets/:id" element={<PrivateRoute><TicketChatPage /></PrivateRoute>} />
 
         {/* Institucionais */}
         <Route path="/suporte" element={<SupportPage />} />

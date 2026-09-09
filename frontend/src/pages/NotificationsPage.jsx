@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { RiBellLine, RiCheckDoubleLine } from 'react-icons/ri';
+import { useNavigate } from 'react-router-dom';
+import { RiBellLine, RiCheckDoubleLine, RiTicketLine, RiArrowRightLine } from 'react-icons/ri';
 import MainLayout from '../components/layout/MainLayout';
 import EmptyState from '../components/ui/EmptyState';
 import { notificationsAPI } from '../services/api';
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     notificationsAPI.getAll()
@@ -27,6 +29,11 @@ export default function NotificationsPage() {
   const markRead = async (id) => {
     await notificationsAPI.markRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const handleClick = async (n) => {
+    if (!n.read) await markRead(n.id);
+    if (n.action_url) navigate(n.action_url);
   };
 
   return (
@@ -62,7 +69,7 @@ export default function NotificationsPage() {
         ) : (
           <div className="space-y-2">
             {notifications.map(n => (
-              <button key={n.id} onClick={() => !n.read && markRead(n.id)}
+              <button key={n.id} onClick={() => handleClick(n)}
                 className={`w-full text-left aw-card p-4 flex items-start gap-3 transition-all ${
                   !n.read ? 'border-aw-purple/30 bg-aw-purple/5' : 'opacity-70 hover:opacity-100'
                 }`}>
@@ -74,6 +81,7 @@ export default function NotificationsPage() {
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}
                   </p>
                 </div>
+                {n.action_url && <RiArrowRightLine className="text-aw-dim flex-shrink-0 mt-1" size={16} />}
               </button>
             ))}
           </div>

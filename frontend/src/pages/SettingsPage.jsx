@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import MainLayout from '../components/layout/MainLayout';
+import AvatarUpload from '../components/ui/AvatarUpload';
 import { userAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -84,6 +85,11 @@ export default function SettingsPage() {
       <Helmet><title>Configurações — ANIMES WORLD</title></Helmet>
       <div className="max-w-2xl mx-auto px-4 md:px-8 py-8">
         <h1 className="text-2xl font-black text-white mb-6">⚙️ Configurações</h1>
+
+        {/* Avatar */}
+        <Section title="Avatar">
+          <AvatarUpload onSaved={() => toast.success('Avatar salvo!')} />
+        </Section>
 
         {/* Conta */}
         <Section title="Conta">

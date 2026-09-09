@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   RiSearchLine, RiBellLine, RiMenuLine, RiCloseLine,
   RiUserLine, RiSettings3Line, RiHistoryLine, RiHeartLine,
   RiLogoutBoxLine, RiShieldLine, RiArrowDownSLine,
   RiHomeLine, RiFilmLine, RiCompassLine, RiStarLine, RiBookmarkLine,
+  RiTicketLine,
 } from 'react-icons/ri';
 import { useAuth } from '../../context/AuthContext';
 import { searchAPI, notificationsAPI } from '../../services/api';
@@ -212,10 +214,11 @@ export default function Header() {
                     <p className="text-xs text-aw-muted truncate">{user?.email}</p>
                   </div>
                   {[
-                    { to: '/perfil', icon: RiUserLine, label: 'Meu Perfil' },
-                    { to: '/historico', icon: RiHistoryLine, label: 'Histórico' },
-                    { to: '/minha-lista', icon: RiBookmarkLine, label: 'Minha Lista' },
-                    { to: '/configuracoes', icon: RiSettings3Line, label: 'Configurações' },
+                    { to: '/perfil',       icon: RiUserLine,     label: 'Meu Perfil' },
+                    { to: '/historico',    icon: RiHistoryLine,  label: 'Histórico' },
+                    { to: '/minha-lista',  icon: RiBookmarkLine, label: 'Minha Lista' },
+                    { to: '/meus-tickets', icon: RiTicketLine,   label: 'Meus Tickets' },
+                    { to: '/configuracoes',icon: RiSettings3Line,label: 'Configurações' },
                     ...(isAdmin ? [{ to: '/admin', icon: RiShieldLine, label: 'Painel Admin' }] : []),
                   ].map(({ to, icon: Icon, label }) => (
                     <Link key={to} to={to} onClick={() => setProfileOpen(false)}
@@ -265,10 +268,11 @@ export default function Header() {
             <nav className="p-4 space-y-1">
               {[
                 ...NAV_LINKS,
-                { to: '/perfil', label: 'Perfil' },
-                { to: '/historico', label: 'Histórico' },
+                { to: '/perfil',        label: 'Perfil' },
+                { to: '/historico',     label: 'Histórico' },
+                { to: '/meus-tickets',  label: '🎫 Meus Tickets' },
                 { to: '/configuracoes', label: 'Configurações' },
-                { to: '/suporte', label: 'Suporte' },
+                { to: '/suporte',       label: 'Suporte' },
                 ...(isAdmin ? [{ to: '/admin', label: '⚙️ Painel Admin' }] : []),
               ].map(({ to, label }) => (
                 <NavLink key={to} to={to} onClick={() => setMenuOpen(false)}

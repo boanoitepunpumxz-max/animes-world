@@ -107,10 +107,26 @@ export const notificationsAPI = {
   markAllRead: () => api.patch('/notifications/read-all'),
 };
 
-// ─── Support ──────────────────────────────────────────────────
+// ─── Support / Tickets ───────────────────────────────────────
 export const supportAPI = {
-  createTicket: (data) => api.post('/support', data),
-  getMyTickets: () => api.get('/support/my-tickets'),
+  createTicket:    (data)       => api.post('/support', data),
+  getMyTickets:    (params)     => api.get('/support/my-tickets', { params }),
+  getTicket:       (id)         => api.get(`/support/tickets/${id}`),
+  getMessages:     (id, since)  => api.get(`/support/tickets/${id}/messages`, { params: { since } }),
+  sendMessage:     (id, message) => api.post(`/support/tickets/${id}/messages`, { message }),
+  updateStatus:    (id, status) => api.patch(`/support/tickets/${id}/status`, { status }),
+  assignTicket:    (id)         => api.patch(`/support/tickets/${id}/assign`),
+};
+
+// ─── Upload ───────────────────────────────────────────────────
+export const uploadAPI = {
+  uploadAvatar: (file) => {
+    const form = new FormData();
+    form.append('avatar', file);
+    return api.post('/upload/avatar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // ─── Admin ────────────────────────────────────────────────────
@@ -129,8 +145,13 @@ export const adminAPI = {
   getSources: (episodeId) => api.get(`/admin/episodes/${episodeId}/sources`),
   createSource: (episodeId, data) => api.post(`/admin/episodes/${episodeId}/sources`, data),
   deleteSource: (episodeId, sourceId) => api.delete(`/admin/episodes/${episodeId}/sources/${sourceId}`),
-  getTickets: (params) => api.get('/admin/tickets', { params }),
-  replyTicket: (id, data) => api.patch(`/admin/tickets/${id}`, data),
+  getTickets:     (params)      => api.get('/admin/tickets', { params }),
+  getTicket:      (id)          => api.get(`/admin/tickets/${id}`),
+  replyTicket:    (id, data)    => api.patch(`/admin/tickets/${id}`, data),
+  updateStatus:   (id, status)  => api.patch(`/admin/tickets/${id}/status`, { status }),
+  assignTicket:   (id)          => api.patch(`/admin/tickets/${id}/assign`),
+  getMessages:    (id, since)   => api.get(`/admin/tickets/${id}/messages`, { params: { since } }),
+  sendMessage:    (id, message) => api.post(`/admin/tickets/${id}/messages`, { message }),
   getSyncLogs: () => api.get('/admin/sync/logs'),
   triggerSync: () => api.post('/admin/sync/trigger'),
 };

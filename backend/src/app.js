@@ -18,6 +18,7 @@ const notificationRoutes = require('./routes/notifications');
 const supportRoutes = require('./routes/support');
 const healthRoutes = require('./routes/health');
 const proxyRoutes = require('./routes/proxy');
+const uploadRoutes = require('./routes/upload');
 
 const { requestLogger } = require('./middleware/requestLogger');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -89,7 +90,8 @@ app.use('/api/episodes', authenticateToken, episodeRoutes);
 app.use('/api/user', authenticateToken, userRoutes);
 app.use('/api/watch', authenticateToken, watchRoutes);
 app.use('/api/notifications', authenticateToken, notificationRoutes);
-app.use('/api/support', authenticateToken, supportRoutes);
+app.use('/api/support', supportRoutes); // auth gerenciada internamente
+app.use('/api/upload', uploadRoutes);   // auth gerenciada internamente
 
 // ─── Admin (requer isAdmin) ──────────────────────────────────
 app.use('/api/admin', adminRoutes);

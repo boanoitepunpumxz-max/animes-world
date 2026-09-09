@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { RiUserLine, RiMailLine, RiLockLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
@@ -8,29 +8,41 @@ import toast from 'react-hot-toast';
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
 
-  const validate = () => {
+  // Campos individuais — evita re-render cruzado entre campos
+  const [username,        setUsername]        = useState('');
+  const [email,           setEmail]           = useState('');
+  const [password,        setPassword]        = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPass,        setShowPass]        = useState(false);
+  const [loading,         setLoading]         = useState(false);
+  const [errors,          setErrors]          = useState({});
+
+  // Handlers estáveis
+  const handleUsername        = useCallback(e => { setUsername(e.target.value);        setErrors(p => ({ ...p, username: '' })); }, []);
+  const handleEmail           = useCallback(e => { setEmail(e.target.value);           setErrors(p => ({ ...p, email: '' })); }, []);
+  const handlePassword        = useCallback(e => { setPassword(e.target.value);        setErrors(p => ({ ...p, password: '' })); }, []);
+  const handleConfirmPassword = useCallback(e => { setConfirmPassword(e.target.value); setErrors(p => ({ ...p, confirmPassword: '' })); }, []);
+  const togglePass            = useCallback(() => setShowPass(p => !p), []);
+
+  const validate = useCallback(() => {
     const e = {};
-    if (!form.username || form.username.length < 3) e.username = 'Username deve ter pelo menos 3 caracteres.';
-    if (!/^[a-zA-Z0-9_]+$/.test(form.username)) e.username = 'Só letras, números e _.';
-    if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) e.email = 'E-mail inválido.';
-    if (!form.password || form.password.length < 8) e.password = 'Senha deve ter pelo menos 8 caracteres.';
-    if (!/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) e.password = 'Senha precisa de letras e números.';
-    if (form.password !== form.confirmPassword) e.confirmPassword = 'As senhas não coincidem.';
+    if (!username || username.length < 3)       e.username        = 'Username deve ter pelo menos 3 caracteres.';
+    if (!/^[a-zA-Z0-9_]+$/.test(username))      e.username        = 'Só letras, números e _.';
+    if (!email || !/\S+@\S+\.\S+/.test(email))  e.email           = 'E-mail inválido.';
+    if (!password || password.length < 8)       e.password        = 'Senha deve ter pelo menos 8 caracteres.';
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) e.password = 'Senha precisa de letras e números.';
+    if (password !== confirmPassword)            e.confirmPassword = 'As senhas não coincidem.';
     setErrors(e);
     return Object.keys(e).length === 0;
-  };
+  }, [username, email, password, confirmPassword]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
     try {
-      await register({ username: form.username, email: form.email, password: form.password });
+      await register({ username, email, password });
       toast.success('Conta criada! Bem-vindo(a)!');
       navigate('/home');
     } catch (err) {
@@ -38,36 +50,14 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const Field = ({ label, name, type = 'text', icon: Icon, placeholder, autoComplete, extra }) => (
-    <div>
-      <label className="aw-label">{label}</label>
-      <div className="relative">
-        <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg" />
-        <input
-          type={type} value={form[name]}
-          onChange={e => { setForm({ ...form, [name]: e.target.value }); setErrors({ ...errors, [name]: '' }); }}
-          placeholder={placeholder} autoComplete={autoComplete}
-          className={`aw-input pl-11 ${extra || ''} ${errors[name] ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-        />
-        {extra && (
-          <button type="button" onClick={() => setShowPass(!showPass)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-aw-dim hover:text-aw-muted">
-            {showPass ? <RiEyeOffLine size={18} /> : <RiEyeLine size={18} />}
-          </button>
-        )}
-      </div>
-      {errors[name] && <p className="text-xs text-red-400 mt-1">{errors[name]}</p>}
-    </div>
-  );
+  }, [validate, register, username, email, password, navigate]);
 
   return (
     <>
       <Helmet><title>Criar Conta — ANIMES WORLD</title></Helmet>
 
       <div className="min-h-screen bg-aw-bg flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[120px] opacity-20"
             style={{ background: 'radial-gradient(circle, #a855f7, transparent)' }} />
           <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full blur-[120px] opacity-20"
@@ -90,26 +80,84 @@ export default function RegisterPage() {
                 className="flex-1 py-4 text-sm font-semibold text-center text-aw-muted hover:text-aw-text transition-colors">
                 ENTRAR
               </Link>
-              <button className="flex-1 py-4 text-sm font-semibold text-aw-purple border-b-2 border-aw-purple">
+              <span className="flex-1 py-4 text-sm font-semibold text-center text-aw-purple border-b-2 border-aw-purple">
                 CRIAR CONTA
-              </button>
+              </span>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-7 space-y-4">
-              <Field label="Nome de usuário" name="username" icon={RiUserLine}
-                placeholder="seunome" autoComplete="username" />
-              <Field label="E-mail" name="email" type="email" icon={RiMailLine}
-                placeholder="seuemail@exemplo.com" autoComplete="email" />
-              <Field label="Senha" name="password" type={showPass ? 'text' : 'password'} icon={RiLockLine}
-                placeholder="Mínimo 8 caracteres" autoComplete="new-password" extra="pr-11" />
+            <form onSubmit={handleSubmit} className="p-7 space-y-4" noValidate>
+              {/* Username */}
               <div>
-                <label className="aw-label">Confirmar senha</label>
+                <label htmlFor="reg-username" className="aw-label">Nome de usuário</label>
                 <div className="relative">
-                  <RiLockLine className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg" />
+                  <RiUserLine className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg pointer-events-none" />
                   <input
+                    id="reg-username"
+                    type="text"
+                    value={username}
+                    onChange={handleUsername}
+                    placeholder="seunome"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className={`aw-input pl-11 ${errors.username ? 'border-red-500' : ''}`}
+                  />
+                </div>
+                {errors.username && <p className="text-xs text-red-400 mt-1">{errors.username}</p>}
+              </div>
+
+              {/* E-mail */}
+              <div>
+                <label htmlFor="reg-email" className="aw-label">E-mail</label>
+                <div className="relative">
+                  <RiMailLine className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg pointer-events-none" />
+                  <input
+                    id="reg-email"
+                    type="email"
+                    value={email}
+                    onChange={handleEmail}
+                    placeholder="seuemail@exemplo.com"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className={`aw-input pl-11 ${errors.email ? 'border-red-500' : ''}`}
+                  />
+                </div>
+                {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
+              </div>
+
+              {/* Senha */}
+              <div>
+                <label htmlFor="reg-password" className="aw-label">Senha</label>
+                <div className="relative">
+                  <RiLockLine className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg pointer-events-none" />
+                  <input
+                    id="reg-password"
                     type={showPass ? 'text' : 'password'}
-                    value={form.confirmPassword}
-                    onChange={e => { setForm({ ...form, confirmPassword: e.target.value }); setErrors({ ...errors, confirmPassword: '' }); }}
+                    value={password}
+                    onChange={handlePassword}
+                    placeholder="Mínimo 8 caracteres"
+                    autoComplete="new-password"
+                    className={`aw-input pl-11 pr-11 ${errors.password ? 'border-red-500' : ''}`}
+                  />
+                  <button type="button" onClick={togglePass} tabIndex={-1}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-aw-dim hover:text-aw-muted">
+                    {showPass ? <RiEyeOffLine size={18} /> : <RiEyeLine size={18} />}
+                  </button>
+                </div>
+                {errors.password && <p className="text-xs text-red-400 mt-1">{errors.password}</p>}
+              </div>
+
+              {/* Confirmar senha */}
+              <div>
+                <label htmlFor="reg-confirm" className="aw-label">Confirmar senha</label>
+                <div className="relative">
+                  <RiLockLine className="absolute left-4 top-1/2 -translate-y-1/2 text-aw-dim text-lg pointer-events-none" />
+                  <input
+                    id="reg-confirm"
+                    type={showPass ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={handleConfirmPassword}
                     placeholder="Repita a senha"
                     autoComplete="new-password"
                     className={`aw-input pl-11 ${errors.confirmPassword ? 'border-red-500' : ''}`}
@@ -119,12 +167,12 @@ export default function RegisterPage() {
               </div>
 
               <button type="submit" disabled={loading} className="aw-btn-primary w-full py-3 text-sm mt-2">
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Criando conta...
-                  </span>
-                ) : 'Criar minha conta'}
+                {loading
+                  ? <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Criando conta...
+                    </span>
+                  : 'Criar minha conta'}
               </button>
 
               <p className="text-center text-xs text-aw-dim">

@@ -1,37 +1,30 @@
 const express = require('express');
-const router = express.Router();
-const { query } = require('../utils/db');
+const router  = express.Router();
+const ctrl    = require('../controllers/ticketController');
+const { authenticateToken } = require('../middleware/auth');
 
-router.post('/', async (req, res, next) => {
-  try {
-    const { subject, category, message } = req.body;
-    if (!subject || !category || !message) {
-      return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-    }
+// Todas as rotas de suporte exigem autenticação
+router.use(authenticateToken);
 
-    const result = await query(
-      `INSERT INTO support_tickets (user_id, subject, category, message)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
-      [req.user.id, subject, category, message]
-    );
+// Criar ticket
+router.post('/', ctrl.createTicket);
 
-    res.status(201).json({
-      message: 'Ticket aberto com sucesso. Responderemos em breve.',
-      ticketId: result.rows[0].id,
-    });
-  } catch (err) { next(err); }
-});
+// Listar meus tickets
+router.get('/my-tickets', ctrl.getMyTickets);
 
-router.get('/my-tickets', async (req, res, next) => {
-  try {
-    const result = await query(
-      `SELECT id, subject, category, status, priority, message, admin_reply, created_at, updated_at
-       FROM support_tickets WHERE user_id = $1 ORDER BY created_at DESC`,
-      [req.user.id]
-    );
-    res.json({ data: result.rows });
-  } catch (err) { next(err); }
-});
+// Detalhes de um ticket (com histórico de mensagens)
+router.get('/tickets/:id', ctrl.getTicket);
+
+// Buscar mensagens (polling)
+router.get('/tickets/:id/messages', ctrl.getMessages);
+
+// Enviar mensagem em um ticket
+router.post('/tickets/:id/messages', ctrl.sendMessage);
+
+// Mudar status (usuário pode fechar, admin pode tudo)
+router.patch('/tickets/:id/status', ctrl.updateTicketStatus);
+
+// Assumir ticket (admin/mod)
+router.patch('/tickets/:id/assign', ctrl.assignTicket);
 
 module.exports = router;
