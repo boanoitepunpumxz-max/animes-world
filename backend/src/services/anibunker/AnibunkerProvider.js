@@ -22,7 +22,7 @@ const cheerio = require('cheerio');
 const BASE_URL   = (process.env.ANIBUNKER_BASE_URL   || 'https://www.anibunker.com').replace(/\/$/, '');
 const TIMEOUT    = parseInt(process.env.ANIBUNKER_TIMEOUT    || '15000');
 const RATE_LIMIT = parseInt(process.env.ANIBUNKER_RATE_LIMIT || '1500');
-const ENABLED    = process.env.ANIBUNKER_ENABLED !== 'false';
+const ENABLED    = process.env.ANIBUNKER_ENABLED !== 'false'; // padrão true
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
