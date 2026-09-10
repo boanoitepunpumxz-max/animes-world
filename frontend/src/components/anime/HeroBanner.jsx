@@ -20,7 +20,6 @@ function heroImg(anime, type = 'cover') {
   // Fallback direto
   return anime.banner_url || anime.background_url || anime.cover_url || '';
 }
-import toast from 'react-hot-toast';
 
 export default function HeroBanner({ animes = [] }) {
   const [current, setCurrent] = useState(0);

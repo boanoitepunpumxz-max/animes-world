@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { RiUploadLine, RiLinkLine, RiUser3Line, RiCloseLine, RiCheckLine } from 'react-icons/ri';
+import { RiUploadLine, RiExternalLinkLine, RiUser3Line, RiCloseLine, RiCheckLine } from 'react-icons/ri';
 import { uploadAPI, userAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -101,7 +101,7 @@ export default function AvatarUpload({ onSaved }) {
               ? 'border-aw-purple text-aw-purple bg-aw-purple/10'
               : 'border-aw-border text-aw-muted hover:border-aw-purple/40'
           }`}>
-          <RiLinkLine size={16} /> Usar URL
+          <RiExternalLinkLine size={16} /> Usar URL
         </button>
       </div>
 
