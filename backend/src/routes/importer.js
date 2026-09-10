@@ -1,6 +1,9 @@
 /**
  * Rotas do Importador AnFireAPI
  * Todas requerem autenticação admin (aplicado no admin.js)
+ *
+ * IMPORTANTE: Este arquivo também monta as rotas do Anibunker em /anibunker/*
+ * para garantir compatibilidade independente da ordem de registro no admin.js
  */
 const express = require('express');
 const router  = express.Router();
@@ -10,6 +13,15 @@ const {
 } = require('../services/anfire/AnimeImporter');
 const { findBestMatch, prefilterCandidates } = require('../services/anfire/AnimeMatcher');
 const { searchAnime } = require('../services/anfire/AnFireProvider');
+
+// Monta rotas do Anibunker como sub-rota ANTES das rotas genéricas do AnFire
+// Isso garante que /anibunker/* funcione mesmo que admin.js registre /importer antes de /importer/anibunker
+try {
+  const anibunkerRoutes = require('./importerAnibunker');
+  router.use('/anibunker', anibunkerRoutes);
+} catch (e) {
+  console.warn('⚠️  Rotas Anibunker não carregadas:', e.message);
+}
 
 // ── GET /api/admin/importer/stats ─────────────────────────────
 // Resumo geral do importador
