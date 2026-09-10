@@ -15,15 +15,44 @@ const PROVIDER = 'anibunker';
 router.get('/debug-fetch/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params;
+    const axios = require('axios');
+    const BASE_URL = 'https://anibunker.com';
+    const HEADERS = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'pt-BR,pt;q=0.9',
+    };
+    const url = `${BASE_URL}/anime/${slug}`;
+    let httpStatus = 0;
+    let htmlSize = 0;
+    let htmlPreview = '';
+    let hasH1 = false;
+    let h1Text = '';
+    let hasTotalEps = false;
+    let fetchError = null;
+    try {
+      const resp = await axios.get(url, { headers: HEADERS, timeout: 15000, decompress: true });
+      httpStatus = resp.status;
+      const html = resp.data;
+      htmlSize = html.length;
+      htmlPreview = html.substring(0, 500);
+      const cheerio = require('cheerio');
+      const $ = cheerio.load(html);
+      hasH1 = $('h1').length > 0;
+      h1Text = $('h1').first().text().trim();
+      hasTotalEps = html.includes('Total Episódios') || html.includes('legendado');
+    } catch(e) {
+      fetchError = `HTTP ${e.response?.status || e.message}`;
+    }
     const animeData = await provider.fetchAnime(slug);
     res.json({
-      slug,
-      baseUrl: process.env.ANIBUNKER_BASE_URL || 'https://anibunker.com',
-      result: animeData,
-      isNull: animeData === null,
+      slug, url, httpStatus, htmlSize, htmlPreview,
+      hasH1, h1Text, hasTotalEps, fetchError,
+      parsedResult: animeData,
+      baseUrl: BASE_URL,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+    res.status(500).json({ error: err.message });
   }
 });
 
