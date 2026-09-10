@@ -28,11 +28,18 @@ const PROVIDERS = {
 };
 
 // ── API helper ────────────────────────────────────────────────
+// URL base do Render (definida em .env.production como VITE_API_URL)
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api';
+
 const _auth = () => ({
   Authorization: `Bearer ${localStorage.getItem('aw_token')}`,
 });
 
-async function safeFetch(url, opts = {}) {
+async function safeFetch(path, opts = {}) {
+  // Usa URL absoluta do Render para evitar que o Vercel intercepte
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
   let res;
   try {
     res = await fetch(url, {
@@ -40,7 +47,7 @@ async function safeFetch(url, opts = {}) {
       headers: { ..._auth(), 'Content-Type': 'application/json', ...opts.headers },
     });
   } catch (e) {
-    throw new Error('Sem conexão com o servidor. Verifique se o Render está no ar.');
+    throw new Error('Sem conexão com o servidor (' + e.message + ')');
   }
   let text = '';
   try { text = await res.text(); } catch { text = ''; }
@@ -52,47 +59,55 @@ async function safeFetch(url, opts = {}) {
     return JSON.parse(text);
   } catch {
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.substring(0, 150)}`);
-    throw new Error('Resposta inválida do servidor (não é JSON).');
+    throw new Error('Resposta inválida do servidor.');
   }
 }
 
-function makeAPI(baseRoute) {
+function makeAPI(adminPath) {
+  // adminPath ex: '/admin/importer' ou '/admin/importer/anibunker'
   return {
-    stats:     ()       => safeFetch(`${baseRoute}/stats`),
-    jobs:      (p = 1)  => safeFetch(`${baseRoute}/jobs?page=${p}`),
-    jobDetail: (id)     => safeFetch(`${baseRoute}/jobs/${id}`),
-    startJob:  (body)   => safeFetch(`${baseRoute}/jobs`, { method: 'POST', body: JSON.stringify(body) }),
-    cancelJob: (id)     => safeFetch(`${baseRoute}/jobs/${id}/cancel`, { method: 'PATCH', body: '{}' }),
-    rollback:  (id)     => safeFetch(`${baseRoute}/rollback/${id}`, { method: 'POST', body: '{}' }),
+    stats:     ()       => safeFetch(`${adminPath}/stats`),
+    jobs:      (p = 1)  => safeFetch(`${adminPath}/jobs?page=${p}`),
+    jobDetail: (id)     => safeFetch(`${adminPath}/jobs/${id}`),
+    startJob:  (body)   => safeFetch(`${adminPath}/jobs`, { method: 'POST', body: JSON.stringify(body) }),
+    cancelJob: (id)     => safeFetch(`${adminPath}/jobs/${id}/cancel`, { method: 'PATCH', body: '{}' }),
+    rollback:  (id)     => safeFetch(`${adminPath}/rollback/${id}`, { method: 'POST', body: '{}' }),
     mappings:  (p, s, q) =>
-      safeFetch(`${baseRoute}/mappings?page=${p}&limit=25${s ? `&status=${s}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
-    updateMap: (id, b)  => safeFetch(`${baseRoute}/mappings/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
-    deleteMap: (id)     => safeFetch(`${baseRoute}/mappings/${id}`, { method: 'DELETE' }),
+      safeFetch(`${adminPath}/mappings?page=${p}&limit=25${s ? `&status=${s}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+    updateMap: (id, b)  => safeFetch(`${adminPath}/mappings/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+    deleteMap: (id)     => safeFetch(`${adminPath}/mappings/${id}`, { method: 'DELETE' }),
   };
 }
 
 const APIS = {
-  anfire:    makeAPI('/api/admin/importer'),
-  anibunker: makeAPI('/api/admin/importer/anibunker'),
+  anfire:    makeAPI('/admin/importer'),
+  anibunker: makeAPI('/admin/importer/anibunker'),
 };
 
-// Acorda o Render e aguarda estar pronto (até 60s com retry)
+// Acorda o Render: faz ping com URL ABSOLUTA do Render (não relativa ao Vercel)
 async function ensureServerAwake(onStatus) {
-  const MAX_ATTEMPTS = 12; // 12 x 5s = 60s
+  // URL absoluta do Render para não ser interceptado pelo Vercel
+  const healthUrl = (import.meta.env.VITE_API_URL || '')
+    ? `${import.meta.env.VITE_API_URL}/api/health`
+    : '/api/health';
+
+  const MAX_ATTEMPTS = 15; // 15 x 4s = 60s
   for (let i = 1; i <= MAX_ATTEMPTS; i++) {
     try {
-      const res = await fetch('/api/health', { cache: 'no-store' });
+      const res = await fetch(healthUrl, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.status === 'ok') return true; // servidor pronto
+        if (data.status === 'ok') return true;
       }
-    } catch { /* ainda dormindo */ }
+    } catch { /* ainda dormindo, continua tentando */ }
     if (i < MAX_ATTEMPTS) {
-      onStatus(`Servidor acordando... (${i * 5}s / 60s)`);
-      await new Promise(r => setTimeout(r, 5000));
+      const waited = i * 4;
+      onStatus(`Conectando ao servidor... (${waited}s)`);
+      await new Promise(r => setTimeout(r, 4000));
     }
   }
-  throw new Error('Servidor não respondeu após 60s. Tente novamente em alguns instantes.');
+  // Se chegou aqui, tenta mesmo assim — pode funcionar
+  return true;
 }
 
 // ── Status badges ─────────────────────────────────────────────
