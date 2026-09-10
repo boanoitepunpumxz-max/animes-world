@@ -1,14 +1,8 @@
 /**
- * ANIMES WORLD — Painel Admin: Importador AnFireAPI
+ * ANIMES WORLD — Painel Admin: Importador Multi-Fonte
  *
- * Funcionalidades:
- *  - Stats gerais do catálogo vs mapeamentos
- *  - Botões de ação (Analisar, Dry Run, Sync Capas, Sync Episódios, Tudo)
- *  - Progresso em tempo real (polling 3s)
- *  - Lista de jobs recentes
- *  - Tabela de mapeamentos (pendentes, review, erros)
- *  - Logs do job selecionado
- *  - Rollback por job
+ * Suporta: AnFireAPI | Anibunker
+ * Preserva todo o sistema AnFireAPI existente.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { adminAPI } from '../../services/api';
@@ -22,12 +16,58 @@ import {
   RiSettings3Line, RiListCheck2, RiExternalLinkLine,
 } from 'react-icons/ri';
 
-// ── api helper específico do importador ──────────────────────
+// ── Configuração de providers ────────────────────────────────
+const PROVIDERS = {
+  anfire: {
+    name: 'AnFireAPI',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/20',
+    baseRoute: '/api/admin/importer',
+    actions: ['analyze','dry_run','sync_covers','sync_episodes','sync_all'],
+  },
+  anibunker: {
+    name: 'Anibunker',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/20',
+    baseRoute: '/api/admin/importer/anibunker',
+    actions: ['analyze','dry_run','sync_episodes','sync_all'],
+  },
+};
+
+// ── api helper (funciona para ambos os providers) ─────────────
+const _auth = () => ({ Authorization: `Bearer ${localStorage.getItem('aw_token')}` });
+const _fetch = (url, opts={}) => fetch(url, { ...opts, headers: { ..._auth(), 'Content-Type': 'application/json', ...opts.headers } }).then(r => r.json());
+
+function makeAPI(baseRoute) {
+  return {
+    stats:       ()      => _fetch(`${baseRoute}/stats`),
+    jobs:        (p=1)   => _fetch(`${baseRoute}/jobs?page=${p}`),
+    jobDetail:   (id)    => _fetch(`${baseRoute}/jobs/${id}`),
+    startJob:    (body)  => _fetch(`${baseRoute}/jobs`, { method:'POST', body: JSON.stringify(body) }),
+    cancelJob:   (id)    => _fetch(`${baseRoute}/jobs/${id}/cancel`, { method:'PATCH', body: '{}' }),
+    rollback:    (id)    => _fetch(`${baseRoute}/rollback/${id}`, { method:'POST', body: '{}' }),
+    mappings:    (p,s,q) => _fetch(`${baseRoute}/mappings?page=${p}&limit=25${s?`&status=${s}`:''}${q?`&q=${encodeURIComponent(q)}`:''}`),
+    updateMap:   (id,b)  => _fetch(`${baseRoute}/mappings/${id}`, { method:'PATCH', body: JSON.stringify(b) }),
+    deleteMap:   (id)    => _fetch(`${baseRoute}/mappings/${id}`, { method:'DELETE' }),
+  };
+}
+
+// Mantém compatibilidade com código existente (AnFireAPI usa /api/admin/importer)
 const importerAPI = {
-  getStats:         ()           => adminAPI.getDashboard().then ? adminAPI.getStats?.() : fetch('/api/admin/importer/stats', { headers: { Authorization: `Bearer ${localStorage.getItem('aw_token')}` } }).then(r => r.json()),
-  _auth:            ()           => ({ Authorization: `Bearer ${localStorage.getItem('aw_token')}` }),
-  stats:            ()           => fetch('/api/admin/importer/stats',             { headers: importerAPI._auth() }).then(r => r.json()),
-  jobs:             (p=1)        => fetch(`/api/admin/importer/jobs?page=${p}`,    { headers: importerAPI._auth() }).then(r => r.json()),
+  ...makeAPI('/api/admin/importer'),
+  _auth,
+  stats:      () => _fetch('/api/admin/importer/stats'),
+  search:     (q) => _fetch('/api/admin/importer/search', { method:'POST', body: JSON.stringify({query:q}) }),
+  match:      (b) => _fetch('/api/admin/importer/match', { method:'POST', body: JSON.stringify(b) }),
+  jobs:       (p=1) => _fetch(`/api/admin/importer/jobs?page=${p}`),
+  jobDetail:  (id) => _fetch(`/api/admin/importer/jobs/${id}`),
+  startJob:   (b)  => _fetch('/api/admin/importer/jobs', { method:'POST', body: JSON.stringify(b) }),
+  cancelJob:  (id) => _fetch(`/api/admin/importer/jobs/${id}/cancel`, { method:'PATCH', body: '{}' }),
+  rollback:   (id) => _fetch(`/api/admin/importer/rollback/${id}`, { method:'POST', body: '{}' }),
+  mappings:   (p,s,q) => _fetch(`/api/admin/importer/mappings?page=${p}&limit=25${s?`&status=${s}`:''}${q?`&q=${encodeURIComponent(q)}`:''}`),
+  updateMapping: (id,b) => _fetch(`/api/admin/importer/mappings/${id}`, { method:'PATCH', body: JSON.stringify(b) }),
+  deleteMapping: (id) => _fetch(`/api/admin/importer/mappings/${id}`, { method:'DELETE' }),
+};
   jobDetail:        (id)         => fetch(`/api/admin/importer/jobs/${id}`,        { headers: importerAPI._auth() }).then(r => r.json()),
   startJob:         (body)       => fetch('/api/admin/importer/jobs',              { method:'POST', headers:{...importerAPI._auth(),'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
   pauseJob:         (id)         => fetch(`/api/admin/importer/jobs/${id}/pause`,  { method:'PATCH', headers: importerAPI._auth() }).then(r => r.json()),
@@ -110,7 +150,9 @@ function JobProgress({ job }) {
 // PÁGINA PRINCIPAL
 // ════════════════════════════════════════════════════════════
 export default function AdminImporter() {
+  const [provider,     setProvider]     = useState('anfire'); // 'anfire' | 'anibunker'
   const [stats,        setStats]        = useState(null);
+  const [anibunkerStats, setAnibunkerStats] = useState(null);
   const [activeJob,    setActiveJob]    = useState(null);
   const [jobs,         setJobs]         = useState([]);
   const [selectedJob,  setSelectedJob]  = useState(null);
@@ -126,11 +168,16 @@ export default function AdminImporter() {
   const [starting,     setStarting]     = useState(false);
   const pollRef = useRef(null);
 
+  // API do provider atual
+  const activeAPI = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+
   // ── Carrega stats ──────────────────────────────────────────
   const loadStats = useCallback(async () => {
     try {
       const d = await importerAPI.stats();
       setStats(d);
+      const db = await _fetch('/api/admin/importer/anibunker/stats');
+      setAnibunkerStats(db);
     } catch { /* silencioso */ }
   }, []);
 
@@ -190,7 +237,8 @@ export default function AdminImporter() {
     if (activeJob) { toast.error('Já existe um job em execução.'); return; }
     setStarting(true);
     try {
-      const r = await importerAPI.startJob({ job_type: jobType, dry_run: dryRun });
+      const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+      const r = await api.startJob({ job_type: jobType, dry_run: dryRun });
       if (r.error) { toast.error(r.error); return; }
       toast.success(r.message || 'Job iniciado!');
       await loadJobs();
@@ -199,16 +247,17 @@ export default function AdminImporter() {
     finally { setStarting(false); }
   };
 
-  const handlePause  = async (id) => { await importerAPI.pauseJob(id);  toast.success('Pausado.'); loadJobs(); };
-  const handleCancel = async (id) => { if (!confirm('Cancelar job?')) return; await importerAPI.cancelJob(id); toast.success('Cancelado.'); loadJobs(); };
+  const handlePause  = async (id) => { await activeAPI.cancelJob(id); toast.success('Cancelado.'); loadJobs(); };
+  const handleCancel = async (id) => { if (!confirm('Cancelar job?')) return; await activeAPI.cancelJob(id); toast.success('Cancelado.'); loadJobs(); };
   const handleRollback = async (id) => {
-    if (!confirm('Desfazer importação? As fontes AnFire criadas serão removidas.')) return;
-    const r = await importerAPI.rollback(id);
+    if (!confirm('Desfazer importação? As fontes criadas serão removidas.')) return;
+    const r = await activeAPI.rollback(id);
     toast.success(`Rollback: ${r.sourcesRemoved ?? 0} fontes removidas.`);
     loadJobs(); loadStats();
   };
 
   const c = stats?.catalog;
+  const ab = anibunkerStats?.catalog;
 
   // ════════════════════════════════════════════════════════
   return (
@@ -217,12 +266,30 @@ export default function AdminImporter() {
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h2 className="text-xl font-black text-white flex items-center gap-2">
-            <RiSettings3Line className="text-aw-purple" /> Importador AnFireAPI
+            <RiSettings3Line className="text-aw-purple" /> Importador Multi-Fonte
           </h2>
           <p className="text-sm text-aw-muted mt-0.5">
-            Sincroniza episódios e capas com a AnFireAPI sem duplicar o catálogo existente.
+            Sincroniza episódios e capas de múltiplas fontes sem duplicar o catálogo existente.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          {/* Seletor de Provider */}
+          <div className="flex items-center gap-1 bg-aw-surface border border-aw-border rounded-xl p-1">
+            {Object.entries(PROVIDERS).map(([key, cfg]) => (
+              <button key={key} onClick={() => { setProvider(key); setTab('overview'); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  provider === key ? 'text-white' : `${cfg.color} hover:bg-white/5`
+                }`}
+                style={provider === key ? { background: 'linear-gradient(135deg,#a855f7,#ec4899)' } : {}}>
+                {cfg.name}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { loadStats(); loadJobs(); }} className="aw-btn-ghost flex items-center gap-1.5 text-sm">
+            <RiRefreshLine size={15} /> Atualizar
+          </button>
+        </div>
+      </div>
         <button onClick={() => { loadStats(); loadJobs(); }} className="aw-btn-ghost flex items-center gap-1.5 text-sm">
           <RiRefreshLine size={15} /> Atualizar
         </button>
@@ -248,8 +315,8 @@ export default function AdminImporter() {
       {/* Job ativo */}
       {activeJob && <JobProgress job={activeJob} />}
 
-      {/* Stats */}
-      {c && (
+      {/* Stats — mostra provider atual */}
+      {provider === 'anfire' && c && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           <StatCard label="Total animes"    value={c.total}        color="text-aw-purple"  />
           <StatCard label="Mapeados"        value={c.mapped}       color="text-blue-400"   />
@@ -260,18 +327,32 @@ export default function AdminImporter() {
           <StatCard label="Eps importados"  value={c.episodesAdded}color="text-aw-purple"  />
         </div>
       )}
+      {provider === 'anibunker' && ab && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          <StatCard label="Total animes"    value={ab.total}        color="text-aw-purple"  />
+          <StatCard label="Mapeados"        value={ab.mapped}       color="text-blue-400"   />
+          <StatCard label="Não mapeados"    value={ab.unmapped}     color="text-aw-muted"   />
+          <StatCard label="Sincronizados"   value={ab.synced}       color="text-green-400"  />
+          <StatCard label="Revisão"         value={ab.review}       color="text-orange-400" />
+          <StatCard label="Eps importados"  value={ab.episodesImported} color="text-aw-purple" />
+        </div>
+      )}
 
       {/* Botões de ação */}
       <div className="aw-card p-5">
-        <h3 className="text-sm font-semibold text-aw-text mb-4">Ações de Sincronização</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-aw-text">
+            Ações — <span className={PROVIDERS[provider]?.color}>{PROVIDERS[provider]?.name}</span>
+          </h3>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { label: '🔍 Analisar Catálogo',    type: 'analyze',       desc: 'Faz matching sem importar', dry: false },
-            { label: '🧪 Dry Run',               type: 'dry_run',       desc: 'Simula importação completa', dry: true  },
-            { label: '🖼️ Completar Capas',       type: 'sync_covers',   desc: 'Preenche capas faltantes',  dry: false },
-            { label: '▶️ Importar Episódios',     type: 'sync_episodes', desc: 'Importa eps dos mapeados',  dry: false },
-            { label: '🔄 Sincronizar Tudo',      type: 'sync_all',      desc: 'Análise + capas + episódios',dry: false },
-          ].map(btn => (
+            { label: '🔍 Analisar Catálogo',  type: 'analyze',       desc: 'Faz matching sem importar',   dry: false, providers: ['anfire','anibunker'] },
+            { label: '🧪 Dry Run',             type: 'dry_run',       desc: 'Simula sem alterar banco',    dry: true,  providers: ['anfire','anibunker'] },
+            { label: '🖼️ Completar Capas',     type: 'sync_covers',   desc: 'Preenche capas faltantes',    dry: false, providers: ['anfire'] },
+            { label: '▶️ Importar Episódios',   type: 'sync_episodes', desc: 'Importa eps dos mapeados',    dry: false, providers: ['anfire','anibunker'] },
+            { label: '🔄 Sincronizar Tudo',    type: 'sync_all',      desc: 'Análise + capas + episódios', dry: false, providers: ['anfire','anibunker'] },
+          ].filter(btn => btn.providers.includes(provider)).map(btn => (
             <button key={btn.type}
               onClick={() => startJob(btn.type, btn.dry)}
               disabled={starting || !!activeJob}
@@ -289,10 +370,6 @@ export default function AdminImporter() {
 
         {activeJob && (
           <div className="flex gap-2 mt-4">
-            <button onClick={() => handlePause(activeJob.id)}
-              className="flex items-center gap-1.5 text-xs bg-yellow-500/20 text-yellow-400 px-3 py-1.5 rounded-lg hover:bg-yellow-500/30 transition-colors">
-              <RiPauseLine size={13}/> Pausar
-            </button>
             <button onClick={() => handleCancel(activeJob.id)}
               className="flex items-center gap-1.5 text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-500/30 transition-colors">
               <RiStopLine size={13}/> Cancelar

@@ -4,14 +4,18 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const ctrl = require('../controllers/adminController');
 const ticketCtrl = require('../controllers/ticketController');
 const importerRoutes = require('./importer');
+const importerAnibunkerRoutes = require('./importerAnibunker');
 const { query } = require('../utils/db');
 const axios = require('axios');
 
 // Todos os endpoints admin exigem autenticação + role admin
 router.use(authenticateToken, requireAdmin);
 
-// ── Importador AnFireAPI ──────────────────────────────────────
+// ── Importador AnFireAPI (existente) ──────────────────────────
 router.use('/importer', importerRoutes);
+
+// ── Importador Anibunker (novo) ───────────────────────────────
+router.use('/importer/anibunker', importerAnibunkerRoutes);
 
 // Dashboard
 router.get('/dashboard', ctrl.getDashboard);
