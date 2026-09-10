@@ -10,10 +10,10 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import {
-  RiRefreshLine, RiPlayLine, RiPauseLine, RiStopLine,
-  RiSearchLine, RiCheckLine, RiAlertLine, RiErrorWarningLine,
+  RiRefreshLine, RiStopLine,
+  RiSearchLine, RiCheckLine, RiAlertLine,
   RiInformationLine, RiDeleteBinLine, RiArrowGoBackLine,
-  RiSettings3Line, RiListCheck2, RiExternalLinkLine,
+  RiSettings3Line, RiExternalLinkLine,
 } from 'react-icons/ri';
 
 // ── Configuração de providers ────────────────────────────────
@@ -68,19 +68,6 @@ const importerAPI = {
   updateMapping: (id,b) => _fetch(`/api/admin/importer/mappings/${id}`, { method:'PATCH', body: JSON.stringify(b) }),
   deleteMapping: (id) => _fetch(`/api/admin/importer/mappings/${id}`, { method:'DELETE' }),
 };
-  jobDetail:        (id)         => fetch(`/api/admin/importer/jobs/${id}`,        { headers: importerAPI._auth() }).then(r => r.json()),
-  startJob:         (body)       => fetch('/api/admin/importer/jobs',              { method:'POST', headers:{...importerAPI._auth(),'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  pauseJob:         (id)         => fetch(`/api/admin/importer/jobs/${id}/pause`,  { method:'PATCH', headers: importerAPI._auth() }).then(r => r.json()),
-  cancelJob:        (id)         => fetch(`/api/admin/importer/jobs/${id}/cancel`, { method:'PATCH', headers: importerAPI._auth() }).then(r => r.json()),
-  rollback:         (id)         => fetch(`/api/admin/importer/rollback/${id}`,    { method:'POST', headers: importerAPI._auth() }).then(r => r.json()),
-  mappings:         (p,s,q)      => fetch(`/api/admin/importer/mappings?page=${p}&limit=25${s?`&status=${s}`:''}${q?`&q=${encodeURIComponent(q)}`:''}`, { headers: importerAPI._auth() }).then(r => r.json()),
-  updateMapping:    (id, body)   => fetch(`/api/admin/importer/mappings/${id}`,    { method:'PATCH', headers:{...importerAPI._auth(),'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  deleteMapping:    (id)         => fetch(`/api/admin/importer/mappings/${id}`,    { method:'DELETE', headers: importerAPI._auth() }).then(r => r.json()),
-  search:           (q)          => fetch('/api/admin/importer/search',            { method:'POST', headers:{...importerAPI._auth(),'Content-Type':'application/json'}, body: JSON.stringify({query:q}) }).then(r => r.json()),
-};
-
-// ── Configuração AnFireAPI ────────────────────────────────────
-const ANFIRE_CONFIGURED = !!import.meta.env.VITE_ANFIRE_API_URL;
 
 // ── Status badges ─────────────────────────────────────────────
 const STATUS_CFG = {
@@ -290,27 +277,6 @@ export default function AdminImporter() {
           </button>
         </div>
       </div>
-        <button onClick={() => { loadStats(); loadJobs(); }} className="aw-btn-ghost flex items-center gap-1.5 text-sm">
-          <RiRefreshLine size={15} /> Atualizar
-        </button>
-      </div>
-
-      {/* Aviso de configuração */}
-      {!ANFIRE_CONFIGURED && (
-        <div className="aw-card p-4 border-yellow-500/30 bg-yellow-500/5">
-          <p className="text-sm text-yellow-400 font-semibold flex items-center gap-2">
-            <RiAlertLine size={16} /> Configuração necessária
-          </p>
-          <p className="text-xs text-aw-muted mt-1">
-            Defina <code className="text-aw-purple">ANFIRE_API_URL</code> e <code className="text-aw-purple">ANFIRE_API_KEY</code> no <code>.env</code> do backend
-            apontando para a sua instância da AnFireAPI.
-          </p>
-          <a href="https://github.com/MestreTM/AnFireAPI-Anime-Player" target="_blank" rel="noopener noreferrer"
-            className="text-xs text-aw-purple hover:underline flex items-center gap-1 mt-2">
-            <RiExternalLinkLine size={12} /> AnFireAPI no GitHub
-          </a>
-        </div>
-      )}
 
       {/* Job ativo */}
       {activeJob && <JobProgress job={activeJob} />}
