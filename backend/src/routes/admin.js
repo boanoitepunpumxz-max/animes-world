@@ -134,3 +134,5 @@ router.get('/sync/logs', ctrl.getSyncLogs);
 router.post('/sync/trigger', require('../services/anilistService').triggerSync);
 
 module.exports = router;
+
+// redeploy trigger
