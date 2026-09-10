@@ -1,16 +1,17 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { RiDashboardLine, RiUserLine, RiFilmLine, RiVideoLine, RiShieldLine, RiRefreshLine, RiCustomerService2Line, RiArrowLeftLine, RiMenuLine, RiCloseLine } from 'react-icons/ri';
+import { RiDashboardLine, RiUserLine, RiFilmLine, RiVideoLine, RiShieldLine, RiRefreshLine, RiCustomerService2Line, RiArrowLeftLine, RiMenuLine, RiCloseLine, RiDownloadLine } from 'react-icons/ri';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 const NAV = [
-  { to: '/admin', label: 'Dashboard', icon: RiDashboardLine, end: true },
-  { to: '/admin/usuarios', label: 'Usuários', icon: RiUserLine },
-  { to: '/admin/animes', label: 'Animes', icon: RiFilmLine },
-  { to: '/admin/episodios', label: 'Episódios', icon: RiVideoLine },
-  { to: '/admin/seguranca', label: 'Segurança / IPs', icon: RiShieldLine },
-  { to: '/admin/sincronizacao', label: 'Sincronização', icon: RiRefreshLine },
-  { to: '/admin/suporte', label: 'Suporte', icon: RiCustomerService2Line },
+  { to: '/admin',               label: 'Dashboard',       icon: RiDashboardLine,      end: true },
+  { to: '/admin/usuarios',      label: 'Usuários',         icon: RiUserLine },
+  { to: '/admin/animes',        label: 'Animes',           icon: RiFilmLine },
+  { to: '/admin/episodios',     label: 'Episódios',        icon: RiVideoLine },
+  { to: '/admin/seguranca',     label: 'Segurança / IPs',  icon: RiShieldLine },
+  { to: '/admin/sincronizacao', label: 'Sincronização',    icon: RiRefreshLine },
+  { to: '/admin/importador',    label: 'Importador AnFire',icon: RiDownloadLine },
+  { to: '/admin/suporte',       label: 'Suporte',          icon: RiCustomerService2Line },
 ];
 
 export default function AdminLayout() {

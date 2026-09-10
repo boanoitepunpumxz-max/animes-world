@@ -3,11 +3,15 @@ const router = express.Router();
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const ctrl = require('../controllers/adminController');
 const ticketCtrl = require('../controllers/ticketController');
+const importerRoutes = require('./importer');
 const { query } = require('../utils/db');
 const axios = require('axios');
 
 // Todos os endpoints admin exigem autenticação + role admin
 router.use(authenticateToken, requireAdmin);
+
+// ── Importador AnFireAPI ──────────────────────────────────────
+router.use('/importer', importerRoutes);
 
 // Dashboard
 router.get('/dashboard', ctrl.getDashboard);

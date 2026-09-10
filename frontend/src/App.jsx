@@ -45,6 +45,7 @@ const AdminEpisodes = lazy(() => import('./pages/admin/AdminEpisodes'));
 const AdminSecurity = lazy(() => import('./pages/admin/AdminSecurity'));
 const AdminSync = lazy(() => import('./pages/admin/AdminSync'));
 const AdminTickets = lazy(() => import('./pages/admin/AdminTickets'));
+const AdminImporter = lazy(() => import('./pages/admin/AdminImporter'));
 
 function PrivateRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -113,6 +114,7 @@ function AppRoutes() {
           <Route path="episodios" element={<AdminEpisodes />} />
           <Route path="seguranca" element={<AdminSecurity />} />
           <Route path="sincronizacao" element={<AdminSync />} />
+          <Route path="importador" element={<AdminImporter />} />
           <Route path="suporte" element={<AdminTickets />} />
         </Route>
 
