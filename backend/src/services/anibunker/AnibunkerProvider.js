@@ -64,7 +64,12 @@ async function fetchAnime(slug) {
         maxRedirects: 5,
         decompress: true,
       });
-      return parseAnimePage(html, slug, url);
+      const result = parseAnimePage(html, slug, url);
+      // Debug: loga se o título extraído é apenas o slug (indica HTML vazio/bloqueado)
+      if (result && result.title === slug) {
+        console.warn(`[AnibunkerProvider] fetchAnime(${slug}): título = slug (HTML pode estar incompleto, size=${html.length})`);
+      }
+      return result;
     } catch (e) {
       if (e.response?.status === 404) return null;
       if (e.response?.status === 403) {

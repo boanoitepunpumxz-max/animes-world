@@ -11,6 +11,22 @@ const provider = require('../services/anibunker/AnibunkerProvider');
 
 const PROVIDER = 'anibunker';
 
+// ── GET /debug-fetch/:slug — diagnóstico (temporário) ─────────
+router.get('/debug-fetch/:slug', async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const animeData = await provider.fetchAnime(slug);
+    res.json({
+      slug,
+      baseUrl: process.env.ANIBUNKER_BASE_URL || 'https://anibunker.com',
+      result: animeData,
+      isNull: animeData === null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+  }
+});
+
 // ── GET /stats ────────────────────────────────────────────────
 router.get('/stats', async (req, res, next) => {
   try {

@@ -239,16 +239,10 @@ async function runAnalysis(jobId, isDryRun, checkpointId = null) {
         const animeData = await provider.fetchAnime(s);
         if (!animeData) continue;
 
-        // Usa o mesmo AnimeMatcher do AnFireAPI
-        const dbCandidates = [{
-          id: animeData.slug, slug: animeData.slug,
-          title: animeData.title, title_english: animeData.title,
-          title_romaji: animeData.title, title_japanese: null,
-        }];
-
-        const match = findBestMatch(
-          anime.title_english || anime.title, anime.title, dbCandidates
-        );
+        // findBestMatch(apiTitle, apiTitleAlt, dbAnimes)
+        // apiTitle = título retornado pelo Anibunker
+        // dbAnimes = [anime do banco]
+        const match = findBestMatch(animeData.title, animeData.title, [anime]);
 
         if (match.score > bestScore) {
           bestScore = match.score;
