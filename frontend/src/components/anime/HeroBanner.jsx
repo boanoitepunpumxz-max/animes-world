@@ -7,18 +7,21 @@ import toast from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Resolve a URL da imagem do hero — usa proxy com MAL ID quando disponível
+// Resolve URL da imagem — Kitsu direto > proxy Kitsu > fallback
 function heroImg(anime, type = 'cover') {
   if (!anime) return '';
-  // Se tem external_id (MAL), usa proxy Kitsu
-  if (anime.external_id && API_URL) {
-    if (type === 'banner') {
-      return `${API_URL}/api/proxy/image?mal_id=${anime.external_id}&type=banner`;
-    }
-    return `${API_URL}/api/proxy/image?mal_id=${anime.external_id}`;
+  const { cover_url, banner_url, background_url, external_id } = anime;
+  // Kitsu URLs já funcionam direto no browser
+  if (type === 'banner') {
+    if (banner_url && banner_url.includes('kitsu.app')) return banner_url;
   }
-  // Fallback direto
-  return anime.banner_url || anime.background_url || anime.cover_url || '';
+  if (cover_url && cover_url.includes('kitsu.app')) return cover_url;
+  // Usa proxy Kitsu pelo mal_id (com cache no servidor)
+  if (external_id && API_URL) {
+    if (type === 'banner') return `${API_URL}/api/proxy/image?mal_id=${external_id}&type=banner`;
+    return `${API_URL}/api/proxy/image?mal_id=${external_id}`;
+  }
+  return banner_url || background_url || cover_url || '';
 }
 
 export default function HeroBanner({ animes = [] }) {

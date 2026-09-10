@@ -5,16 +5,23 @@ import ProgressBar from '../ui/ProgressBar';
 const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='300' viewBox='0 0 200 300'%3E%3Crect width='200' height='300' fill='%2316161f'/%3E%3Ctext x='100' y='155' font-family='sans-serif' font-size='14' fill='%23475569' text-anchor='middle'%3EAW%3C/text%3E%3C/svg%3E";
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Para animes com MAL ID (external_id), usa o proxy que resolve via Kitsu
-// Para outros, usa a URL diretamente
 function getCoverUrl(anime) {
   const { cover_url, external_id } = anime;
-  // Se tem external_id (MAL ID), usa o proxy que busca no Kitsu
-  if (external_id && API_URL) {
-    return `${API_URL}/api/proxy/image?mal_id=${external_id}`;
-  }
-  // Fallback: URL direta
+  // Kitsu URLs funcionam direto no browser — usa direto
+  if (cover_url && cover_url.includes('kitsu.app')) return cover_url;
+  // MAL CDN URLs funcionam direto se o formato estiver correto
+  if (cover_url && cover_url.includes('cdn.myanimelist.net') && !cover_url.includes('/images/anime/')) return cover_url;
+  // Para outros casos (AniList quebrado, etc.), usa o proxy Kitsu pelo mal_id
+  if (external_id && API_URL) return `${API_URL}/api/proxy/image?mal_id=${external_id}`;
+  // Fallback direto
   return cover_url || PLACEHOLDER;
+}
+
+function getFallback(anime) {
+  const { external_id, cover_url } = anime;
+  // Se tinha URL direta e falhou, tenta o proxy
+  if (external_id && API_URL) return `${API_URL}/api/proxy/image?mal_id=${external_id}`;
+  return PLACEHOLDER;
 }
 
 export default function AnimeCard({ anime, progress, showProgress = false }) {
@@ -48,7 +55,12 @@ export default function AnimeCard({ anime, progress, showProgress = false }) {
             src={getCoverUrl(anime)}
             alt={title_english || title}
             loading="lazy"
-            onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER; }}
+            onError={(e) => {
+              e.target.onerror = null;
+              const fb = getFallback(anime);
+              if (e.target.src !== fb) { e.target.src = fb; }
+              else { e.target.src = PLACEHOLDER; }
+            }}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
 
