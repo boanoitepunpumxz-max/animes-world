@@ -1,14 +1,30 @@
 require('dotenv').config();
 const app = require('./app');
-const { testConnection } = require('./utils/db');
+const { testConnection, query } = require('./utils/db');
 const { startSyncJob } = require('./jobs/syncJob');
 const { startFixCoversJob } = require('./jobs/fixCoversJob');
 
 const PORT = process.env.PORT || 3001;
 
+// Cancela jobs que ficaram travados em 'running'/'pending' de execuções anteriores
+async function cleanupStaleJobs() {
+  try {
+    const r = await query(
+      `UPDATE import_jobs SET status='cancelled', finished_at=NOW()
+       WHERE status IN ('running','pending') RETURNING id, job_type, provider`
+    );
+    if (r.rowCount > 0) {
+      console.log(`🧹 ${r.rowCount} job(s) travado(s) cancelado(s) no startup`);
+    }
+  } catch (e) {
+    console.warn('⚠️  Não foi possível limpar jobs travados:', e.message);
+  }
+}
+
 async function start() {
   try {
     await testConnection();
+    await cleanupStaleJobs();
     if (process.env.NODE_ENV !== 'test') {
       startSyncJob();
       startFixCoversJob();

@@ -11,11 +11,12 @@ const axios = require('axios');
 // Todos os endpoints admin exigem autenticação + role admin
 router.use(authenticateToken, requireAdmin);
 
+// ── Importador Anibunker — DEVE vir ANTES do AnFireAPI ────────
+// (Express resolve a rota mais específica primeiro)
+router.use('/importer/anibunker', importerAnibunkerRoutes);
+
 // ── Importador AnFireAPI (existente) ──────────────────────────
 router.use('/importer', importerRoutes);
-
-// ── Importador Anibunker (novo) ───────────────────────────────
-router.use('/importer/anibunker', importerAnibunkerRoutes);
 
 // Dashboard
 router.get('/dashboard', ctrl.getDashboard);
