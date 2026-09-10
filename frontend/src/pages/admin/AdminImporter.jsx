@@ -33,11 +33,25 @@ const PROVIDERS = {
 
 // ── API helper ────────────────────────────────────────────────
 const _auth = () => ({ Authorization: `Bearer ${localStorage.getItem('aw_token')}` });
-const _fetch = (url, opts = {}) =>
-  fetch(url, {
+const _fetch = async (url, opts = {}) => {
+  const res = await fetch(url, {
     ...opts,
     headers: { ..._auth(), 'Content-Type': 'application/json', ...opts.headers },
-  }).then(r => r.json());
+  });
+  const text = await res.text();
+  if (!text || text.trim() === '') {
+    // Resposta vazia — pode ser Render dormindo ou erro sem corpo
+    if (!res.ok) throw new Error(`HTTP ${res.status} — resposta vazia do servidor`);
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Não é JSON — provavelmente HTML de erro
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.substring(0, 200)}`);
+    throw new Error('Resposta inválida do servidor (não é JSON)');
+  }
+};
 
 function makeAPI(baseRoute) {
   return {
@@ -199,6 +213,13 @@ export default function AdminImporter() {
     } catch { toast.error('Erro ao carregar logs.'); }
   }, [provider]);
 
+  // ── Acorda o servidor Render (free tier dorme após inatividade) ──
+  const wakeServer = useCallback(async () => {
+    try {
+      await fetch('/api/health');
+    } catch { /* ignora */ }
+  }, []);
+
   // ── Polling — reinicia quando provider muda ───────────────
   useEffect(() => {
     setJobs([]);
@@ -222,6 +243,8 @@ export default function AdminImporter() {
     if (activeJob) { toast.error('Já existe um job em execução.'); return; }
     setStarting(true);
     try {
+      // Garante que o servidor está acordado antes de iniciar
+      await wakeServer();
       const api = APIS[provider] || APIS.anfire;
       const r = await api.startJob({ job_type: jobType, dry_run: dryRun });
       if (r.error) { toast.error(r.error); return; }
@@ -229,7 +252,13 @@ export default function AdminImporter() {
       await loadJobs(provider);
       await loadStats();
     } catch (e) {
-      toast.error('Erro ao iniciar job: ' + (e.message || 'verifique o console'));
+      // Mostra o erro real para facilitar diagnóstico
+      const msg = e.message || 'Erro desconhecido';
+      if (msg.includes('504') || msg.includes('502') || msg.includes('vazia')) {
+        toast.error('Servidor está acordando, aguarde 30s e tente novamente.');
+      } else {
+        toast.error('Erro: ' + msg.substring(0, 100));
+      }
     } finally { setStarting(false); }
   };
 
