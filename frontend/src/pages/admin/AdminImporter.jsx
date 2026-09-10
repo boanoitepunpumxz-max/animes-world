@@ -155,69 +155,75 @@ export default function AdminImporter() {
   const [starting,     setStarting]     = useState(false);
   const pollRef = useRef(null);
 
-  // API do provider atual
-  const activeAPI = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
-
-  // ── Carrega stats ──────────────────────────────────────────
+  // ── Carrega stats (sempre ambos) ───────────────────────────
   const loadStats = useCallback(async () => {
     try {
-      const d = await importerAPI.stats();
+      const [d, db] = await Promise.all([
+        importerAPI.stats(),
+        _fetch('/api/admin/importer/anibunker/stats'),
+      ]);
       setStats(d);
-      const db = await _fetch('/api/admin/importer/anibunker/stats');
       setAnibunkerStats(db);
     } catch { /* silencioso */ }
   }, []);
 
-  // ── Carrega jobs recentes ──────────────────────────────────
+  // ── Carrega jobs do provider ATUAL ─────────────────────────
   const loadJobs = useCallback(async () => {
     setLoadingJobs(true);
     try {
-      const d = await importerAPI.jobs(1);
+      const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+      const d = await api.jobs(1);
       setJobs(d.data || []);
-      // Verifica job ativo
+      // Só seta activeJob se for do provider atual
       const running = (d.data || []).find(j => j.status === 'running' || j.status === 'pending');
-      if (running) setActiveJob(running);
-      else setActiveJob(null);
+      setActiveJob(running || null);
     } finally { setLoadingJobs(false); }
-  }, []);
+  }, [provider]);
 
-  // ── Carrega mapeamentos ────────────────────────────────────
+  // ── Carrega mapeamentos do provider ATUAL ─────────────────
   const loadMappings = useCallback(async () => {
     setLoadingMap(true);
     try {
-      const d = await importerAPI.mappings(mappingPage, mapStatus, mapSearch);
+      const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+      const d = await api.mappings(mappingPage, mapStatus, mapSearch);
       setMappings(d.data || []);
       setMappingTotal(d.total || 0);
     } finally { setLoadingMap(false); }
-  }, [mappingPage, mapStatus, mapSearch]);
+  }, [provider, mappingPage, mapStatus, mapSearch]);
 
   // ── Carrega logs de um job ────────────────────────────────
   const loadJobLogs = useCallback(async (jobId) => {
     try {
-      const d = await importerAPI.jobDetail(jobId);
+      const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+      const d = await api.jobDetail(jobId);
       setSelectedJob(d.job);
       setJobLogs(d.logs || []);
     } catch { toast.error('Erro ao carregar logs.'); }
-  }, []);
+  }, [provider]);
 
-  // ── Polling enquanto job ativo ────────────────────────────
+  // ── Polling: reinicia quando provider muda ───────────────
   useEffect(() => {
+    setJobs([]);
+    setActiveJob(null);
     loadStats();
     loadJobs();
+    clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       await loadStats();
       await loadJobs();
       if (selectedJob?.id) {
-        const d = await importerAPI.jobDetail(selectedJob.id);
-        setSelectedJob(d.job);
-        setJobLogs(d.logs || []);
+        try {
+          const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+          const d = await api.jobDetail(selectedJob.id);
+          setSelectedJob(d.job);
+          setJobLogs(d.logs || []);
+        } catch { /* silencioso */ }
       }
     }, 4000);
     return () => clearInterval(pollRef.current);
-  }, []);
+  }, [provider]); // reinicia quando troca de provider
 
   useEffect(() => { if (tab === 'mappings') loadMappings(); }, [tab, loadMappings]);
-  useEffect(() => { if (tab === 'mappings') loadMappings(); }, [mappingPage, mapStatus, mapSearch]);
 
   // ── Inicia job ────────────────────────────────────────────
   const startJob = async (jobType, dryRun = false) => {
@@ -234,11 +240,17 @@ export default function AdminImporter() {
     finally { setStarting(false); }
   };
 
-  const handlePause  = async (id) => { await activeAPI.cancelJob(id); toast.success('Cancelado.'); loadJobs(); };
-  const handleCancel = async (id) => { if (!confirm('Cancelar job?')) return; await activeAPI.cancelJob(id); toast.success('Cancelado.'); loadJobs(); };
+  const handleCancel = async (id) => {
+    if (!confirm('Cancelar job?')) return;
+    const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+    await api.cancelJob(id);
+    toast.success('Cancelado.');
+    loadJobs();
+  };
   const handleRollback = async (id) => {
     if (!confirm('Desfazer importação? As fontes criadas serão removidas.')) return;
-    const r = await activeAPI.rollback(id);
+    const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+    const r = await api.rollback(id);
     toast.success(`Rollback: ${r.sourcesRemoved ?? 0} fontes removidas.`);
     loadJobs(); loadStats();
   };
@@ -480,7 +492,8 @@ export default function AdminImporter() {
                             {m.status === 'review_required' && (
                               <button
                                 onClick={async () => {
-                                  const r = await importerAPI.updateMapping(m.id, { status: 'pending' });
+                                  const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+                                  await api.updateMap(m.id, { status: 'pending' });
                                   toast.success('Aprovado para sincronização.'); loadMappings();
                                 }}
                                 className="text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 px-2 py-1 rounded"
@@ -491,7 +504,8 @@ export default function AdminImporter() {
                             <button
                               onClick={async () => {
                                 if (!confirm('Remover mapeamento?')) return;
-                                await importerAPI.deleteMapping(m.id);
+                                const api = provider === 'anibunker' ? makeAPI('/api/admin/importer/anibunker') : importerAPI;
+                                await api.deleteMap(m.id);
                                 toast.success('Mapeamento removido.'); loadMappings();
                               }}
                               className="text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2 py-1 rounded"
