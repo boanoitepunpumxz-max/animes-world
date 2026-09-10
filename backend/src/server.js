@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { testConnection } = require('./utils/db');
 const { startSyncJob } = require('./jobs/syncJob');
+const { startFixCoversJob } = require('./jobs/fixCoversJob');
 
 const PORT = process.env.PORT || 3001;
 
@@ -10,6 +11,7 @@ async function start() {
     await testConnection();
     if (process.env.NODE_ENV !== 'test') {
       startSyncJob();
+      startFixCoversJob();
     }
     app.listen(PORT, () => {
       console.log(`\n🚀 ANIMES WORLD v1.1 Backend rodando na porta ${PORT}`);
