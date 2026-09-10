@@ -25,9 +25,17 @@ const RATE_LIMIT = parseInt(process.env.ANIBUNKER_RATE_LIMIT || '1500');
 const ENABLED    = process.env.ANIBUNKER_ENABLED !== 'false'; // padrão true
 
 const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Cache-Control': 'max-age=0',
   'Referer': BASE_URL + '/',
 };
 
@@ -50,10 +58,27 @@ async function fetchAnime(slug) {
   return rateLimited(async () => {
     const url = `${BASE_URL}/anime/${slug}`;
     try {
-      const { data: html } = await axios.get(url, { headers: HEADERS, timeout: TIMEOUT });
+      const { data: html } = await axios.get(url, {
+        headers: HEADERS,
+        timeout: TIMEOUT,
+        maxRedirects: 5,
+        decompress: true,
+      });
       return parseAnimePage(html, slug, url);
     } catch (e) {
       if (e.response?.status === 404) return null;
+      if (e.response?.status === 403) {
+        // Anibunker bloqueou por anti-bot — tenta com headers alternativos
+        try {
+          const altHeaders = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9',
+          };
+          const { data: html2 } = await axios.get(url, { headers: altHeaders, timeout: TIMEOUT });
+          return parseAnimePage(html2, slug, url);
+        } catch { return null; } // Se ainda bloquear, pula
+      }
       throw e;
     }
   });
@@ -70,10 +95,26 @@ async function fetchEpisode(slug, episode, version = 'legendado') {
   return rateLimited(async () => {
     const url = `${BASE_URL}/anime/${slug}-episodio-${episode}-${version}`;
     try {
-      const { data: html } = await axios.get(url, { headers: HEADERS, timeout: TIMEOUT });
+      const { data: html } = await axios.get(url, {
+        headers: HEADERS,
+        timeout: TIMEOUT,
+        maxRedirects: 5,
+        decompress: true,
+      });
       return parseEpisodePage(html, slug, episode, version, url);
     } catch (e) {
       if (e.response?.status === 404) return null;
+      if (e.response?.status === 403) {
+        try {
+          const altHeaders = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9',
+          };
+          const { data: html2 } = await axios.get(url, { headers: altHeaders, timeout: TIMEOUT });
+          return parseEpisodePage(html2, slug, episode, version, url);
+        } catch { return null; }
+      }
       throw e;
     }
   });

@@ -320,7 +320,7 @@ async function runAnalysis(jobId, isDryRun, checkpointId = null) {
 
 // ── Sincroniza episódios dos animes mapeados ──────────────────
 async function runSyncEpisodes(jobId, isDryRun, animeIds = null) {
-  let where = `aes.provider='${PROVIDER}' AND aes.status IN ('pending','partial') AND aes.external_slug!=''`;
+  let where = `aes.provider='${PROVIDER}' AND aes.status IN ('pending','partial','review_required') AND aes.external_slug!=''`;
   const params = [];
   if (animeIds?.length) {
     params.push(animeIds);

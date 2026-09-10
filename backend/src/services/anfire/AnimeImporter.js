@@ -201,54 +201,50 @@ async function runAnalysis(jobId, isDryRun, userId) {
         continue;
       }
 
-      // Usa apenas os 10 primeiros resultados para matching
-      const candidates = results.slice(0, 10).map(r => ({
-        id: r.slug, slug: r.slug, title: r.title,
-        title_english: r.title, title_romaji: r.title,
-        title_japanese: null,
-      }));
+      // Para cada resultado da API, calcula score contra o anime do banco
+      // findBestMatch(apiTitle, apiTitleAlt, [dbAnime]) — correto: título da API vs anime do banco
+      let bestFromApiScore = 0;
+      let bestFromApi = null;
+      let bestMatchMethod = 'fuzzy';
 
-      const best = findBestMatch(anime.title_english || anime.title, anime.title, candidates);
+      for (const r of results.slice(0, 10)) {
+        const match = findBestMatch(r.title, r.title, [anime]);
+        if (match.score > bestFromApiScore) {
+          bestFromApiScore = match.score;
+          bestFromApi = r;
+          bestMatchMethod = match.method || 'fuzzy';
+        }
+      }
 
-      if (best.classification === 'match') {
-        const matchData = results.find(r => r.slug === best.anime?.id || r.slug === best.anime?.slug);
-        await log(jobId, 'MATCH',
-          `${anime.title} → ${best.anime.title} (${best.score}%)`,
-          anime.id, { score: best.score, method: best.method, reasons: best.reasons }
+      const finalScore = bestFromApiScore;
+      const finalResult = bestFromApi;
+      const classification = finalScore >= 85 ? 'match' : finalScore >= 50 ? 'review_required' : 'no_match';
+
+      if (classification === 'match' || classification === 'review_required') {
+        const status = classification === 'match' ? 'pending' : 'review_required';
+        await log(jobId, classification === 'match' ? 'MATCH' : 'WARN',
+          `${anime.title} → ${finalResult.title} (${finalScore}%)`,
+          anime.id, { score: finalScore, method: bestMatchMethod }
         );
-        if (!isDryRun) {
+        if (!isDryRun && finalResult) {
           await query(
             `INSERT INTO anime_external_sources
                (anime_id, external_slug, external_title, external_url, match_score, match_method, status)
-             VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (anime_id, provider) DO UPDATE SET
                external_slug = EXCLUDED.external_slug,
                match_score = EXCLUDED.match_score,
-               status = 'pending'`,
-            [anime.id, best.anime.slug || best.anime.id, best.anime.title, matchData?.url || '', best.score, best.method]
+               status = EXCLUDED.status`,
+            [anime.id, finalResult.slug || finalResult.id || '', finalResult.title, finalResult.url || '', finalScore, bestMatchMethod, status]
           );
         }
-        matched++;
-      } else if (best.classification === 'review_required') {
-        await log(jobId, 'WARN',
-          `${anime.title} — correspondência ambígua: ${best.anime?.title} (${best.score}%)`,
-          anime.id, { score: best.score, candidates: results.slice(0, 5).map(r => r.title) }
-        );
-        if (!isDryRun) {
-          await query(
-            `INSERT INTO anime_external_sources
-               (anime_id, external_slug, external_title, match_score, match_method, status, notes)
-             VALUES ($1, $2, $3, $4, $5, 'review_required', $6)
-             ON CONFLICT (anime_id, provider) DO NOTHING`,
-            [anime.id, best.anime?.slug || '', best.anime?.title || '', best.score, best.method,
-             `Candidatos: ${results.slice(0, 3).map(r => r.title).join(', ')}`]
-          );
-        }
-        reviewRequired++;
+        if (classification === 'match') matched++; else reviewRequired++;
       } else {
         noMatch++;
         await log(jobId, 'WARN', `${anime.title} — sem correspondência segura`, anime.id);
       }
+      continue; // bloco antigo removido — novo está acima
+
     } catch (e) {
       errors++;
       await log(jobId, 'ERROR', `${anime.title} — erro: ${e.message}`, anime.id);
@@ -328,7 +324,7 @@ async function runSyncCovers(jobId, isDryRun) {
 
 // ── Sincroniza episódios dos animes mapeados ─────────────────
 async function runSyncEpisodes(jobId, isDryRun, animeIds = null) {
-  let whereClause = `aes.provider = 'anfire' AND aes.status IN ('pending','partial') AND aes.external_slug != ''`;
+  let whereClause = `aes.provider = 'anfire' AND aes.status IN ('pending','partial','review_required') AND aes.external_slug != ''`;
   const params = [];
   if (animeIds?.length) {
     params.push(animeIds);
