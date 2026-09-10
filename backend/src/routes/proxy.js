@@ -1,99 +1,113 @@
 /**
- * ANIMES WORLD — Proxy de Imagens
- *
- * GET /api/proxy/image?mal_id=21
- *   → Busca a imagem correta via Kitsu API e redireciona
- *
- * GET /api/proxy/image?url=https://...
- *   → Proxy direto para URL permitida
+ * ANIMES WORLD — Proxy de Imagens com Cache
+ * GET /api/proxy/image?mal_id=21          → resolve via Kitsu e redireciona
+ * GET /api/proxy/image?mal_id=21&type=banner → retorna banner
+ * GET /api/proxy/image?url=https://...    → proxy de URL direta
  */
 const express = require('express');
 const axios   = require('axios');
 const router  = express.Router();
 
-// Cache em memória: mal_id → { cover, banner }
+// Cache em memória (sobrevive enquanto o processo estiver rodando)
 const imgCache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
-// Busca imagens no Kitsu por MAL ID (com cache)
+function getCached(key) {
+  const entry = imgCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { imgCache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key, data) {
+  imgCache.set(key, { data, ts: Date.now() });
+}
+
+// Busca imagens no Kitsu por MAL ID
 async function getKitsuImage(malId) {
-  const key = String(malId);
-  if (imgCache.has(key)) return imgCache.get(key);
+  const cacheKey = `kitsu:${malId}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
 
   try {
-    const url =
-      `https://kitsu.app/api/edge/mappings` +
-      `?filter[externalSite]=myanimelist%2Fanime` +
-      `&filter[externalId]=${malId}` +
-      `&include=item&page[limit]=1`;
-
+    const url = `https://kitsu.app/api/edge/mappings?filter[externalSite]=myanimelist%2Fanime&filter[externalId]=${malId}&include=item&page[limit]=1`;
     const r = await axios.get(url, {
       timeout: 8000,
       headers: { 'Accept': 'application/vnd.api+json', 'User-Agent': 'AnimesWorld/1.0' },
     });
-
     const included = r.data?.included;
-    if (!included || included.length === 0) {
-      imgCache.set(key, null);
-      return null;
-    }
-
+    if (!included || included.length === 0) { setCache(cacheKey, null); return null; }
     const attrs = included[0].attributes;
     const result = {
       cover:  attrs.posterImage?.large  || attrs.posterImage?.medium  || null,
       banner: attrs.coverImage?.large   || attrs.coverImage?.original || null,
     };
-
-    imgCache.set(key, result);
+    setCache(cacheKey, result);
     return result;
   } catch {
-    imgCache.set(key, null);
+    // Não cacheia erro para tentar novamente depois
     return null;
   }
 }
 
-const ALLOWED = [
+const ALLOWED_DOMAINS = [
   'media.kitsu.app', 'kitsu.app',
   'cdn.myanimelist.net', 'myanimelist.net',
   's4.anilist.co', 'anilist.co',
+  'img1.ak.crunchyroll.com',
 ];
+
+const PLACEHOLDER_SVG = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300">` +
+  `<rect width="200" height="300" fill="#16161f"/>` +
+  `<text x="100" y="155" font-family="sans-serif" font-size="18" fill="#475569" text-anchor="middle">AW</text>` +
+  `</svg>`
+);
 
 // GET /api/proxy/image?mal_id=21
 // GET /api/proxy/image?mal_id=21&type=banner
 router.get('/image', async (req, res) => {
   const { url, mal_id, type } = req.query;
 
-  // ── Modo MAL ID: resolve via Kitsu ──────────────────────────
+  // ── Modo MAL ID: resolve via Kitsu ─────────────────────────
   if (mal_id && !url) {
     const imgs = await getKitsuImage(mal_id);
-    const imgUrl = type === 'banner' ? imgs?.banner : imgs?.cover;
+    const imgUrl = type === 'banner' ? (imgs?.banner || imgs?.cover) : imgs?.cover;
 
     if (imgUrl) {
-      // Redireciona direto para a URL do Kitsu (sem proxy)
+      // Cache no browser por 7 dias
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Access-Control-Allow-Origin', '*');
       return res.redirect(302, imgUrl);
     }
 
-    // Fallback: SVG placeholder
-    return res.status(200)
+    // Placeholder se Kitsu não encontrou
+    return res
+      .status(200)
       .set('Content-Type', 'image/svg+xml')
-      .set('Cache-Control', 'public, max-age=300')
-      .send(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300">` +
-        `<rect width="200" height="300" fill="#16161f"/>` +
-        `<text x="100" y="155" font-family="sans-serif" font-size="18" ` +
-        `fill="#475569" text-anchor="middle">AW</text></svg>`
-      );
+      .set('Cache-Control', 'public, max-age=60')
+      .send(PLACEHOLDER_SVG);
   }
 
-  // ── Modo URL direta: proxy ────────────────────────────────────
+  // ── Modo URL direta: proxy ──────────────────────────────────
   if (!url) return res.status(400).send('Param mal_id ou url obrigatorio');
 
   try {
     const parsed = new URL(url);
-    if (!ALLOWED.some(d => parsed.hostname.endsWith(d))) {
+    if (!ALLOWED_DOMAINS.some(d => parsed.hostname.endsWith(d))) {
       return res.status(403).send('Dominio nao permitido');
     }
   } catch {
     return res.status(400).send('URL invalida');
+  }
+
+  // Cache da resposta de URL direta
+  const urlCacheKey = `url:${url}`;
+  const cachedUrl = getCached(urlCacheKey);
+  if (cachedUrl) {
+    res.setHeader('Content-Type', cachedUrl.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(cachedUrl.buffer);
   }
 
   try {
@@ -106,10 +120,13 @@ router.get('/image', async (req, res) => {
         'Accept': 'image/webp,image/jpeg,image/*',
       },
     });
-    res.set('Content-Type', response.headers['content-type'] || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=604800'); // 7 dias
-    res.set('Access-Control-Allow-Origin', '*');
-    res.send(response.data);
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    const buf = Buffer.from(response.data);
+    setCache(urlCacheKey, { contentType, buffer: buf });
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(buf);
   } catch {
     res.status(502).send('Erro ao buscar imagem');
   }

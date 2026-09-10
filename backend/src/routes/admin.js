@@ -1,20 +1,10 @@
-psql.exe : psql: erro: a conexπo com o servidor em 
-"ep-icy-feather-axnteatt.c-4.us-east-2.aws.neon.tech" (13.58.18.166), porta 5432 falhou: o servidor 
-fechou a conexπo de forma nπo esperada
-No linha:1 caractere:1
-+ & $PSQL -h "ep-icy-feather-axnteatt.c-4.us-east-2.aws.neon.tech" -p 5 ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (psql: erro: a c...ma nπo esperada:String) [], RemoteExce 
-   ption
-    + FullyQualifiedErrorId : NativeCommandError
- 
-        Isso provavelmente significa que o servidor     foi encerrado de forma nπo normal antes ou
-        durante o processamento da solicitaτπo.const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const ctrl = require('../controllers/adminController');
 const ticketCtrl = require('../controllers/ticketController');
 const { query } = require('../utils/db');
+const axios = require('axios');
 
 // Todos os endpoints admin exigem autenticação + role admin
 router.use(authenticateToken, requireAdmin);
@@ -45,7 +35,7 @@ router.get('/episodes/:episodeId/sources', ctrl.adminGetSources);
 router.post('/episodes/:episodeId/sources', ctrl.adminCreateSource);
 router.delete('/episodes/:episodeId/sources/:sourceId', ctrl.adminDeleteSource);
 
-// Suporte — novo sistema com chat
+// Suporte — sistema com chat
 router.get('/tickets', ticketCtrl.adminGetTickets);
 router.patch('/tickets/:id', ticketCtrl.adminReplyTicket);
 router.patch('/tickets/:id/status', ticketCtrl.updateTicketStatus);
@@ -54,111 +44,78 @@ router.get('/tickets/:id', ticketCtrl.getTicket);
 router.get('/tickets/:id/messages', ticketCtrl.getMessages);
 router.post('/tickets/:id/messages', ticketCtrl.sendMessage);
 
-// ── Manutenção do banco (limpeza de duplicados) ──────────────
+// ── Manutenção: limpa duplicados ─────────────────────────────
 router.post('/maintenance/clean-duplicates', async (req, res, next) => {
   try {
-    // Conta antes
     const before = await query('SELECT COUNT(*) FROM anime');
-
-    // Remove duplicados por external_id (mantém o com capa + mais popular)
-    await query(`
-      DELETE FROM anime_genres WHERE anime_id IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY external_id
-            ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC
-          ) rn FROM anime WHERE external_id IS NOT NULL
-        ) t WHERE rn > 1
-      )
-    `);
-    await query(`
-      DELETE FROM seasons WHERE anime_id IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY external_id
-            ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC
-          ) rn FROM anime WHERE external_id IS NOT NULL
-        ) t WHERE rn > 1
-      )
-    `);
-    const dupResult = await query(`
-      DELETE FROM anime WHERE id IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY external_id
-            ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC
-          ) rn FROM anime WHERE external_id IS NOT NULL
-        ) t WHERE rn > 1
-      )
-    `);
-
-    // Remove duplicados por slug
-    await query(`
-      DELETE FROM anime_genres WHERE anime_id IN (
-        SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY slug ORDER BY (CASE WHEN cover_url IS NOT NULL THEN 0 ELSE 1 END), popularity DESC NULLS LAST) rn FROM anime) t WHERE rn > 1
-      )
-    `);
-    await query(`
-      DELETE FROM seasons WHERE anime_id IN (
-        SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY slug ORDER BY (CASE WHEN cover_url IS NOT NULL THEN 0 ELSE 1 END), popularity DESC NULLS LAST) rn FROM anime) t WHERE rn > 1
-      )
-    `);
-    const slugDups = await query(`
-      DELETE FROM anime WHERE id IN (
-        SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY slug ORDER BY (CASE WHEN cover_url IS NOT NULL THEN 0 ELSE 1 END), popularity DESC NULLS LAST) rn FROM anime) t WHERE rn > 1
-      )
-    `);
-
-    // Remove sem capa sem interação
-    await query(`
-      DELETE FROM anime_genres WHERE anime_id IN (
-        SELECT a.id FROM anime a
-        WHERE (a.cover_url IS NULL OR a.cover_url='')
-        AND NOT EXISTS (SELECT 1 FROM episodes e WHERE e.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM watch_history wh WHERE wh.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM watchlist wl WHERE wl.anime_id=a.id)
-      )
-    `);
-    await query(`
-      DELETE FROM seasons WHERE anime_id IN (
-        SELECT a.id FROM anime a
-        WHERE (a.cover_url IS NULL OR a.cover_url='')
-        AND NOT EXISTS (SELECT 1 FROM episodes e WHERE e.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM watch_history wh WHERE wh.anime_id=a.id)
-        AND NOT EXISTS (SELECT 1 FROM watchlist wl WHERE wl.anime_id=a.id)
-      )
-    `);
-    const noCoverResult = await query(`
-      DELETE FROM anime
-      WHERE (cover_url IS NULL OR cover_url='')
-      AND NOT EXISTS (SELECT 1 FROM episodes e WHERE e.anime_id=anime.id)
-      AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.anime_id=anime.id)
-      AND NOT EXISTS (SELECT 1 FROM watch_history wh WHERE wh.anime_id=anime.id)
-      AND NOT EXISTS (SELECT 1 FROM watchlist wl WHERE wl.anime_id=anime.id)
-    `);
-
-    // Conta depois
+    await query(`DELETE FROM anime_genres WHERE anime_id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY external_id ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC) rn FROM anime WHERE external_id IS NOT NULL) t WHERE rn > 1)`);
+    await query(`DELETE FROM seasons WHERE anime_id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY external_id ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC) rn FROM anime WHERE external_id IS NOT NULL) t WHERE rn > 1)`);
+    const dupResult = await query(`DELETE FROM anime WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY external_id ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC) rn FROM anime WHERE external_id IS NOT NULL) t WHERE rn > 1)`);
     const after = await query('SELECT COUNT(*) FROM anime');
-    const dupsCheck = await query(`
-      SELECT COUNT(*) FROM (
-        SELECT external_id FROM anime WHERE external_id IS NOT NULL
-        GROUP BY external_id HAVING COUNT(*)>1
-      ) x
-    `);
-    const noCoverCheck = await query(
-      "SELECT COUNT(*) FROM anime WHERE cover_url IS NULL OR cover_url=''"
+    res.json({ antes: parseInt(before.rows[0].count), depois: parseInt(after.rows[0].count), removidos: dupResult.rowCount });
+  } catch (err) { next(err); }
+});
+
+// ── Manutenção: atualiza capas com Kitsu (batch) ─────────────
+router.post('/maintenance/fix-covers', async (req, res, next) => {
+  try {
+    const { limit = 200, offset = 0 } = req.body;
+
+    // Busca animes com capas AniList (quebradas) ou sem capa
+    const animes = await query(
+      `SELECT id, external_id, title FROM anime
+       WHERE external_id IS NOT NULL
+         AND (cover_url IS NULL OR cover_url='' OR cover_url LIKE '%anilist%' OR cover_url LIKE '%myanimelist.net/images/anime/%/%l.jpg')
+       ORDER BY popularity DESC NULLS LAST
+       LIMIT $1 OFFSET $2`,
+      [parseInt(limit), parseInt(offset)]
+    );
+
+    let updated = 0, failed = 0;
+    const BATCH = 20;
+
+    for (let i = 0; i < animes.rows.length; i += BATCH) {
+      const batch = animes.rows.slice(i, i + BATCH);
+      const ids = batch.map(a => a.external_id).join(',');
+
+      try {
+        const kitsuResp = await axios.get(
+          `https://kitsu.app/api/edge/mappings?filter[externalSite]=myanimelist%2Fanime&filter[externalId]=${ids}&include=item&page[limit]=20`,
+          { timeout: 10000, headers: { 'Accept': 'application/vnd.api+json', 'User-Agent': 'AnimesWorld/1.0' } }
+        );
+
+        const included = kitsuResp.data?.included || [];
+        const imageMap = {};
+        included.forEach(item => { imageMap[item.id] = { cover: item.attributes?.posterImage?.large || item.attributes?.posterImage?.medium, banner: item.attributes?.coverImage?.large }; });
+
+        const data = kitsuResp.data?.data || [];
+        for (const mapping of data) {
+          const malId = mapping.attributes?.externalId;
+          const kitsuId = mapping.relationships?.item?.data?.id;
+          if (!malId || !kitsuId || !imageMap[kitsuId]) continue;
+          const imgs = imageMap[kitsuId];
+          if (!imgs.cover) continue;
+          await query(
+            `UPDATE anime SET cover_url=$1, banner_url=COALESCE($2, banner_url), updated_at=NOW() WHERE external_id=$3`,
+            [imgs.cover, imgs.banner, malId]
+          );
+          updated++;
+        }
+      } catch (_) { failed += batch.length; }
+
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    const remaining = await query(
+      `SELECT COUNT(*) FROM anime WHERE cover_url IS NULL OR cover_url='' OR cover_url LIKE '%anilist%'`
     );
 
     res.json({
-      antes: parseInt(before.rows[0].count),
-      depois: parseInt(after.rows[0].count),
-      removidos_dups_ext: dupResult.rowCount,
-      removidos_dups_slug: slugDups.rowCount,
-      removidos_sem_capa: noCoverResult.rowCount,
-      dups_restantes: parseInt(dupsCheck.rows[0].count),
-      sem_capa_restantes: parseInt(noCoverCheck.rows[0].count),
+      processados: animes.rows.length,
+      atualizados: updated,
+      falhas: failed,
+      ainda_sem_capa: parseInt(remaining.rows[0].count),
+      offset_proximo: parseInt(offset) + parseInt(limit),
     });
   } catch (err) { next(err); }
 });

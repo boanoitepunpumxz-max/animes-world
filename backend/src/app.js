@@ -96,6 +96,18 @@ app.use('/api/upload', uploadRoutes);   // auth gerenciada internamente
 // ─── Admin (requer isAdmin) ──────────────────────────────────
 app.use('/api/admin', adminRoutes);
 
+// ─── Raiz do servidor — página de status ─────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    name: 'ANIMES WORLD API',
+    version: '1.0.0',
+    status: 'online',
+    docs: 'https://animes-world-eight.vercel.app',
+    health: '/api/health',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ─── 404 ─────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });
