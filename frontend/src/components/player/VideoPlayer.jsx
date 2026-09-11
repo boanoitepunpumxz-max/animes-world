@@ -3,8 +3,8 @@ import ReactPlayer from 'react-player';
 import {
   RiPlayFill, RiPauseFill, RiVolumeUpLine, RiVolumeMuteLine,
   RiFullscreenLine, RiFullscreenExitLine, RiSettings3Line,
-  RiSkipForwardFill, RiSkipBackFill, RiSpeedLine,
-  RiCloseLine, RiLoader4Line,
+  RiSkipForwardFill, RiSkipBackFill,
+  RiCloseLine, RiLoader4Line, RiTranslate2, RiServerLine,
 } from 'react-icons/ri';
 
 function formatTime(seconds) {
@@ -14,6 +14,17 @@ function formatTime(seconds) {
   const s = Math.floor(seconds % 60);
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// Agrupa fontes por idioma para o seletor
+function groupSources(sources) {
+  const groups = {};
+  sources.forEach((s, idx) => {
+    const lang = s.language || 'legendado';
+    if (!groups[lang]) groups[lang] = [];
+    groups[lang].push({ ...s, idx });
+  });
+  return groups;
 }
 
 export default function VideoPlayer({
@@ -26,28 +37,44 @@ export default function VideoPlayer({
   hasPrev = false,
   hasNext = false,
 }) {
-  const playerRef = useRef(null);
-  const containerRef = useRef(null);
+  const playerRef       = useRef(null);
+  const containerRef    = useRef(null);
   const hideControlsTimer = useRef(null);
+  const iframeRef       = useRef(null);
 
-  const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [played, setPlayed] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [buffering, setBuffering] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [showSettings, setShowSettings] = useState(false);
-  const [selectedSource, setSelectedSource] = useState(0);
-  const [seeking, setSeeking] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [playing,        setPlaying]        = useState(false);
+  const [volume,         setVolume]          = useState(1);
+  const [muted,          setMuted]           = useState(false);
+  const [played,         setPlayed]          = useState(0);
+  const [duration,       setDuration]        = useState(0);
+  const [buffering,      setBuffering]       = useState(false);
+  const [fullscreen,     setFullscreen]      = useState(false);
+  const [showControls,   setShowControls]    = useState(true);
+  const [playbackRate,   setPlaybackRate]    = useState(1);
+  const [showSettings,   setShowSettings]    = useState(false);
+  const [selectedSource, setSelectedSource]  = useState(0);
+  const [seeking,        setSeeking]         = useState(false);
+  const [hasStarted,     setHasStarted]      = useState(false);
+  const [iframeKey,      setIframeKey]       = useState(0); // força remount do iframe
+  const [showLangMenu,   setShowLangMenu]    = useState(false);
 
   const currentSource = sources[selectedSource] || sources[0];
   const isEmbed = currentSource?.source_type === 'embed' || currentSource?.source_type === 'iframe';
+  const sourceGroups = groupSources(sources);
+  const currentLang  = currentSource?.language || 'legendado';
 
-  // Seek para o progresso inicial
+  // Reset iframe key quando fonte muda (força recarregar)
+  useEffect(() => {
+    setIframeKey(k => k + 1);
+  }, [selectedSource]);
+
+  // Reset selectedSource para índice 0 da nova lista quando sources mudam
+  useEffect(() => {
+    setSelectedSource(0);
+    setIframeKey(k => k + 1);
+  }, [sources]);
+
+  // Seek para o progresso inicial (ReactPlayer)
   useEffect(() => {
     if (initialProgress > 0 && playerRef.current && hasStarted) {
       playerRef.current.seekTo(initialProgress, 'seconds');
@@ -90,7 +117,6 @@ export default function VideoPlayer({
   const handleSeekClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
-    const time = x * duration;
     setPlayed(x);
     playerRef.current?.seekTo(x, 'fraction');
   };
@@ -101,11 +127,11 @@ export default function VideoPlayer({
     switch (e.key) {
       case ' ': case 'k': e.preventDefault(); setPlaying(p => !p); break;
       case 'ArrowRight': playerRef.current?.seekTo(Math.min(played * duration + 10, duration), 'seconds'); break;
-      case 'ArrowLeft': playerRef.current?.seekTo(Math.max(played * duration - 10, 0), 'seconds'); break;
-      case 'ArrowUp': setVolume(v => Math.min(1, v + 0.1)); break;
-      case 'ArrowDown': setVolume(v => Math.max(0, v - 0.1)); break;
-      case 'm': setMuted(m => !m); break;
-      case 'f': toggleFullscreen(); break;
+      case 'ArrowLeft':  playerRef.current?.seekTo(Math.max(played * duration - 10, 0), 'seconds'); break;
+      case 'ArrowUp':    setVolume(v => Math.min(1, v + 0.1)); break;
+      case 'ArrowDown':  setVolume(v => Math.max(0, v - 0.1)); break;
+      case 'm':          setMuted(m => !m); break;
+      case 'f':          toggleFullscreen(); break;
     }
   }, [played, duration]); // eslint-disable-line
 
@@ -114,12 +140,21 @@ export default function VideoPlayer({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Troca para o idioma selecionado (pega a primeira source do idioma)
+  const switchLanguage = (lang) => {
+    const group = sourceGroups[lang];
+    if (group && group.length > 0) {
+      setSelectedSource(group[0].idx);
+      setShowLangMenu(false);
+    }
+  };
+
   if (!sources || sources.length === 0) {
     return (
       <div className="aspect-video bg-aw-surface flex items-center justify-center rounded-xl border border-aw-border">
         <div className="text-center space-y-2">
           <p className="text-aw-muted text-sm">Nenhuma fonte de vídeo disponível.</p>
-          <p className="text-xs text-aw-dim">Configure os episódios no painel admin.</p>
+          <p className="text-xs text-aw-dim">Os episódios serão adicionados em breve.</p>
         </div>
       </div>
     );
@@ -128,14 +163,17 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className="relative bg-black aspect-video rounded-xl overflow-hidden group"
+      className="relative bg-black rounded-xl overflow-hidden group"
+      style={{ aspectRatio: '16/9' }}
       onMouseMove={resetHideTimer}
       onMouseLeave={() => playing && setShowControls(false)}
     >
-      {/* Player */}
+      {/* ── Embed (AniXo / iframe) ─────────────────────────── */}
       {isEmbed ? (
-        <div className="w-full h-full relative bg-black">
+        <>
           <iframe
+            key={iframeKey}
+            ref={iframeRef}
             src={currentSource?.url}
             className="w-full h-full border-0"
             allowFullScreen
@@ -143,156 +181,240 @@ export default function VideoPlayer({
             referrerPolicy="no-referrer-when-downgrade"
             title="Player"
           />
-        </div>
-      ) : (
-        <ReactPlayer
-          ref={playerRef}
-          url={currentSource?.url}
-          width="100%"
-          height="100%"
-          playing={playing}
-          volume={volume}
-          muted={muted}
-          playbackRate={playbackRate}
-          onReady={() => setHasStarted(true)}
-          onStart={() => setPlaying(true)}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => { setPlaying(false); onEnded?.(); }}
-          onBuffer={() => setBuffering(true)}
-          onBufferEnd={() => setBuffering(false)}
-          onProgress={handleProgress}
-          onDuration={setDuration}
-          config={{
-            file: { attributes: { crossOrigin: 'anonymous' }, forceHLS: currentSource?.source_type === 'hls' },
-          }}
-          style={{ position: 'absolute', top: 0, left: 0 }}
-        />
-      )}
 
-      {/* Buffering */}
-      {buffering && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-          <RiLoader4Line className="text-white text-4xl animate-spin" />
-        </div>
-      )}
+          {/* Controles externos sobre o iframe — idioma + fullscreen */}
+          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+            <div className={`flex items-end justify-between px-3 pb-2 transition-opacity duration-300 pointer-events-auto`}>
 
-      {/* Play/Pause center click */}
-      {!isEmbed && (
-        <div className="absolute inset-0" onClick={() => setPlaying(p => !p)} />
-      )}
-
-      {/* Controles — ocultados quando não hover */}
-      {!isEmbed && (
-        <div className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 space-y-3">
-
-            {/* Progress bar */}
-            <div
-              className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group/bar"
-              onClick={handleSeekClick}
-            >
-              {/* Buffer */}
-              <div className="absolute top-0 left-0 h-full bg-white/30 rounded-full" />
-              {/* Played */}
-              <div
-                className="absolute top-0 left-0 h-full rounded-full"
-                style={{ width: `${played * 100}%`, background: 'linear-gradient(90deg,#a855f7,#ec4899)' }}
-              />
-              {/* Thumb */}
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover/bar:opacity-100 transition-opacity"
-                style={{ left: `calc(${played * 100}% - 6px)` }}
-              />
-            </div>
-
-            {/* Controles */}
-            <div className="flex items-center gap-3">
-              {/* Ep anterior */}
-              {hasPrev && (
-                <button onClick={onPrevEpisode} className="text-white/70 hover:text-white transition-colors">
-                  <RiSkipBackFill size={20} />
-                </button>
-              )}
-
-              {/* Play/Pause */}
-              <button onClick={() => setPlaying(p => !p)} className="text-white hover:text-aw-purple-light transition-colors">
-                {playing ? <RiPauseFill size={26} /> : <RiPlayFill size={26} />}
-              </button>
-
-              {/* Próximo ep */}
-              {hasNext && (
-                <button onClick={onNextEpisode} className="text-white/70 hover:text-white transition-colors">
-                  <RiSkipForwardFill size={20} />
-                </button>
-              )}
-
-              {/* Volume */}
-              <div className="flex items-center gap-2">
-                <button onClick={() => setMuted(m => !m)} className="text-white/70 hover:text-white transition-colors">
-                  {muted || volume === 0 ? <RiVolumeMuteLine size={20} /> : <RiVolumeUpLine size={20} />}
-                </button>
-                <input
-                  type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
-                  onChange={e => { setVolume(parseFloat(e.target.value)); setMuted(false); }}
-                  className="w-16 md:w-24 h-1 accent-purple-500"
-                />
-              </div>
-
-              {/* Tempo */}
-              <span className="text-white/70 text-xs ml-1 hidden sm:block">
-                {formatTime(played * duration)} / {formatTime(duration)}
-              </span>
-
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              {/* Fontes */}
-              {sources.length > 1 && (
-                <div className="flex items-center gap-1">
-                  {sources.map((s, i) => (
-                    <button key={i} onClick={() => setSelectedSource(i)}
-                      className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                        i === selectedSource ? 'bg-aw-purple text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}>
-                      {s.quality || s.label}
-                    </button>
-                  ))}
+              {/* Seletor de Idioma */}
+              {Object.keys(sourceGroups).length > 1 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowLangMenu(s => !s)}
+                    className="flex items-center gap-1.5 bg-black/80 hover:bg-black/90 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors border border-white/10"
+                  >
+                    <RiTranslate2 size={13} />
+                    {currentLang === 'legendado' ? 'Legendado' :
+                     currentLang === 'dublado'   ? 'Dublado'   :
+                     currentLang.charAt(0).toUpperCase() + currentLang.slice(1)}
+                  </button>
+                  {showLangMenu && (
+                    <div className="absolute bottom-9 left-0 aw-card shadow-xl p-1 z-50 min-w-[130px]">
+                      {Object.keys(sourceGroups).map(lang => (
+                        <button
+                          key={lang}
+                          onClick={() => switchLanguage(lang)}
+                          className={`w-full text-left text-sm px-3 py-2 rounded transition-colors ${
+                            lang === currentLang
+                              ? 'text-aw-purple bg-aw-purple/10 font-semibold'
+                              : 'text-aw-muted hover:text-aw-text hover:bg-white/5'
+                          }`}
+                        >
+                          {lang === 'legendado' ? '🇧🇷 Legendado' :
+                           lang === 'dublado'   ? '🎙️ Dublado'    :
+                           lang === 'sub'       ? '🇧🇷 Legendado'  :
+                           lang === 'dub'       ? '🎙️ Dublado'    :
+                           lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Velocidade */}
-              <div className="relative">
-                <button onClick={() => setShowSettings(s => !s)} className="text-white/70 hover:text-white transition-colors">
-                  <RiSettings3Line size={18} />
+              {/* Navegação ep + fullscreen */}
+              <div className="flex items-center gap-1 ml-auto">
+                {hasPrev && (
+                  <button onClick={onPrevEpisode}
+                    className="bg-black/80 hover:bg-black/90 text-white/80 hover:text-white p-1.5 rounded-lg transition-colors border border-white/10">
+                    <RiSkipBackFill size={15} />
+                  </button>
+                )}
+                {hasNext && (
+                  <button onClick={onNextEpisode}
+                    className="bg-black/80 hover:bg-black/90 text-white/80 hover:text-white p-1.5 rounded-lg transition-colors border border-white/10">
+                    <RiSkipForwardFill size={15} />
+                  </button>
+                )}
+                <button onClick={toggleFullscreen}
+                  className="bg-black/80 hover:bg-black/90 text-white/80 hover:text-white p-1.5 rounded-lg transition-colors border border-white/10">
+                  {fullscreen ? <RiFullscreenExitLine size={15} /> : <RiFullscreenLine size={15} />}
                 </button>
-                {showSettings && (
-                  <div className="absolute bottom-8 right-0 w-48 aw-card shadow-xl p-2 z-50">
-                    <div className="flex items-center justify-between px-2 py-1.5 mb-1">
-                      <span className="text-xs font-semibold text-aw-muted">Velocidade</span>
-                      <button onClick={() => setShowSettings(false)}>
-                        <RiCloseLine size={14} className="text-aw-muted" />
-                      </button>
-                    </div>
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(r => (
-                      <button key={r} onClick={() => { setPlaybackRate(r); setShowSettings(false); }}
-                        className={`w-full text-left text-sm px-3 py-1.5 rounded transition-colors ${
-                          r === playbackRate ? 'text-aw-purple bg-aw-purple/10' : 'text-aw-muted hover:text-aw-text hover:bg-white/5'
+              </div>
+            </div>
+          </div>
+
+          {/* Fecha menus ao clicar fora */}
+          {showLangMenu && (
+            <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
+          )}
+        </>
+      ) : (
+        /* ── ReactPlayer (HLS / MP4) ──────────────────────── */
+        <>
+          <ReactPlayer
+            ref={playerRef}
+            url={currentSource?.url}
+            width="100%"
+            height="100%"
+            playing={playing}
+            volume={volume}
+            muted={muted}
+            playbackRate={playbackRate}
+            onReady={() => setHasStarted(true)}
+            onStart={() => setPlaying(true)}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => { setPlaying(false); onEnded?.(); }}
+            onBuffer={() => setBuffering(true)}
+            onBufferEnd={() => setBuffering(false)}
+            onProgress={handleProgress}
+            onDuration={setDuration}
+            config={{
+              file: {
+                attributes: { crossOrigin: 'anonymous' },
+                forceHLS: currentSource?.source_type === 'hls',
+              },
+            }}
+            style={{ position: 'absolute', top: 0, left: 0 }}
+          />
+
+          {buffering && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+              <RiLoader4Line className="text-white text-4xl animate-spin" />
+            </div>
+          )}
+
+          <div className="absolute inset-0" onClick={() => setPlaying(p => !p)} />
+
+          {/* Controles customizados */}
+          <div className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 sm:p-4 space-y-2 sm:space-y-3">
+
+              {/* Barra de progresso */}
+              <div
+                className="relative h-1.5 bg-white/20 rounded-full cursor-pointer group/bar"
+                onClick={handleSeekClick}
+              >
+                <div className="absolute top-0 left-0 h-full bg-white/30 rounded-full" />
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full"
+                  style={{ width: `${played * 100}%`, background: 'linear-gradient(90deg,#a855f7,#ec4899)' }}
+                />
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover/bar:opacity-100 transition-opacity"
+                  style={{ left: `calc(${played * 100}% - 6px)` }}
+                />
+              </div>
+
+              {/* Linha de controles */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                {hasPrev && (
+                  <button onClick={onPrevEpisode} className="text-white/70 hover:text-white transition-colors">
+                    <RiSkipBackFill size={18} />
+                  </button>
+                )}
+                <button onClick={() => setPlaying(p => !p)} className="text-white hover:text-aw-purple-light transition-colors">
+                  {playing ? <RiPauseFill size={24} /> : <RiPlayFill size={24} />}
+                </button>
+                {hasNext && (
+                  <button onClick={onNextEpisode} className="text-white/70 hover:text-white transition-colors">
+                    <RiSkipForwardFill size={18} />
+                  </button>
+                )}
+
+                {/* Volume */}
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setMuted(m => !m)} className="text-white/70 hover:text-white transition-colors">
+                    {muted || volume === 0 ? <RiVolumeMuteLine size={18} /> : <RiVolumeUpLine size={18} />}
+                  </button>
+                  <input
+                    type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
+                    onChange={e => { setVolume(parseFloat(e.target.value)); setMuted(false); }}
+                    className="w-14 sm:w-20 h-1 accent-purple-500 hidden sm:block"
+                  />
+                </div>
+
+                {/* Tempo */}
+                <span className="text-white/70 text-xs hidden sm:block">
+                  {formatTime(played * duration)} / {formatTime(duration)}
+                </span>
+
+                <div className="flex-1" />
+
+                {/* Seletor de idioma */}
+                {Object.keys(sourceGroups).length > 1 && (
+                  <div className="relative">
+                    <button onClick={() => setShowLangMenu(s => !s)}
+                      className="flex items-center gap-1 text-white/70 hover:text-white transition-colors text-xs">
+                      <RiTranslate2 size={16} />
+                      <span className="hidden sm:inline capitalize">{currentLang === 'legendado' ? 'LEG' : currentLang === 'dublado' ? 'DUB' : currentLang.toUpperCase()}</span>
+                    </button>
+                    {showLangMenu && (
+                      <div className="absolute bottom-8 right-0 aw-card shadow-xl p-1 z-50 min-w-[130px]">
+                        {Object.keys(sourceGroups).map(lang => (
+                          <button key={lang} onClick={() => switchLanguage(lang)}
+                            className={`w-full text-left text-sm px-3 py-2 rounded transition-colors ${
+                              lang === currentLang ? 'text-aw-purple bg-aw-purple/10 font-semibold' : 'text-aw-muted hover:text-aw-text hover:bg-white/5'
+                            }`}>
+                            {lang === 'legendado' ? '🇧🇷 Legendado' : lang === 'dublado' ? '🎙️ Dublado' : lang}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fontes múltiplas (qualidade) */}
+                {sources.filter(s => s.language === currentLang).length > 1 && (
+                  <div className="flex items-center gap-1">
+                    {sources.map((s, i) => s.language !== currentLang ? null : (
+                      <button key={i} onClick={() => setSelectedSource(i)}
+                        className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
+                          i === selectedSource ? 'bg-aw-purple text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
                         }`}>
-                        {r === 1 ? 'Normal' : `${r}x`}
+                        {s.quality || s.label}
                       </button>
                     ))}
                   </div>
                 )}
-              </div>
 
-              {/* Fullscreen */}
-              <button onClick={toggleFullscreen} className="text-white/70 hover:text-white transition-colors">
-                {fullscreen ? <RiFullscreenExitLine size={20} /> : <RiFullscreenLine size={20} />}
-              </button>
+                {/* Velocidade */}
+                <div className="relative">
+                  <button onClick={() => setShowSettings(s => !s)} className="text-white/70 hover:text-white transition-colors">
+                    <RiSettings3Line size={17} />
+                  </button>
+                  {showSettings && (
+                    <div className="absolute bottom-8 right-0 w-44 aw-card shadow-xl p-2 z-50">
+                      <div className="flex items-center justify-between px-2 py-1 mb-1">
+                        <span className="text-xs font-semibold text-aw-muted">Velocidade</span>
+                        <button onClick={() => setShowSettings(false)}><RiCloseLine size={13} className="text-aw-muted" /></button>
+                      </div>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map(r => (
+                        <button key={r} onClick={() => { setPlaybackRate(r); setShowSettings(false); }}
+                          className={`w-full text-left text-sm px-3 py-1.5 rounded transition-colors ${
+                            r === playbackRate ? 'text-aw-purple bg-aw-purple/10' : 'text-aw-muted hover:text-aw-text hover:bg-white/5'
+                          }`}>
+                          {r === 1 ? 'Normal' : `${r}x`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Fullscreen */}
+                <button onClick={toggleFullscreen} className="text-white/70 hover:text-white transition-colors">
+                  {fullscreen ? <RiFullscreenExitLine size={18} /> : <RiFullscreenLine size={18} />}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Fecha menus ao clicar fora */}
+          {(showLangMenu || showSettings) && (
+            <div className="fixed inset-0 z-40" onClick={() => { setShowLangMenu(false); setShowSettings(false); }} />
+          )}
+        </>
       )}
     </div>
   );

@@ -250,6 +250,7 @@ async function runSyncEpisodes(jobId, isDryRun, animeIds = null) {
     where += ` AND aes.anime_id = ANY($1)`;
   }
 
+  // Sem LIMIT — processa todos os mapeados em batches internos para não sobrecarregar
   const mapped = await query(
     `SELECT aes.id AS aes_id, aes.anime_id, aes.external_slug,
             aes.episode_count,
@@ -257,8 +258,7 @@ async function runSyncEpisodes(jobId, isDryRun, animeIds = null) {
      FROM anime_external_sources aes
      JOIN anime a ON a.id = aes.anime_id
      WHERE ${where}
-     ORDER BY a.popularity DESC NULLS LAST
-     LIMIT 500`,
+     ORDER BY a.popularity DESC NULLS LAST`,
     params
   );
 

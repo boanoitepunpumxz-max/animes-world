@@ -59,7 +59,7 @@ router.get('/debug-fetch/:slug', async (req, res, next) => {
 // ── GET /stats ────────────────────────────────────────────────
 router.get('/stats', async (req, res, next) => {
   try {
-    const [total, mapped, pending, synced, review, errors, eps] = await Promise.all([
+    const [total, mapped, pending, synced, review, errors, eps, anixoEps] = await Promise.all([
       query('SELECT COUNT(*) FROM anime WHERE is_hidden=false'),
       query(`SELECT COUNT(*) FROM anime_external_sources WHERE provider='${PROVIDER}'`),
       query(`SELECT COUNT(*) FROM anime_external_sources WHERE provider='${PROVIDER}' AND status='pending'`),
@@ -67,6 +67,7 @@ router.get('/stats', async (req, res, next) => {
       query(`SELECT COUNT(*) FROM anime_external_sources WHERE provider='${PROVIDER}' AND status='review_required'`),
       query(`SELECT COUNT(*) FROM anime_external_sources WHERE provider='${PROVIDER}' AND status='error'`),
       query(`SELECT COUNT(*) FROM episode_sources WHERE provider_name='${PROVIDER}'`),
+      query(`SELECT COUNT(*) FROM episode_sources WHERE provider_name='anixo'`),
     ]);
 
     const jobs = await query(
@@ -87,7 +88,8 @@ router.get('/stats', async (req, res, next) => {
         review:   parseInt(review.rows[0].count),
         errors:   parseInt(errors.rows[0].count),
         unmapped: parseInt(total.rows[0].count) - parseInt(mapped.rows[0].count),
-        episodesImported: parseInt(eps.rows[0].count),
+        // Conta fontes do anibunker + anixo (ambos são o provider do nosso importer)
+        episodesImported: parseInt(eps.rows[0].count) + parseInt(anixoEps.rows[0].count),
       },
       recentJobs: jobs.rows,
     });
