@@ -53,8 +53,92 @@ router.get('/tickets/:id', ticketCtrl.getTicket);
 router.get('/tickets/:id/messages', ticketCtrl.getMessages);
 router.post('/tickets/:id/messages', ticketCtrl.sendMessage);
 
-// ── Manutenção: limpa duplicados ─────────────────────────────
-router.post('/maintenance/clean-duplicates', async (req, res, next) => {
+// ── Manutenção: popula AniXo (embed player sem bloqueio) ─────
+// Converte MAL ID → AniList ID e cria episode_sources com embed do AniXo
+router.post('/maintenance/populate-anixo', async (req, res, next) => {
+  try {
+    const { limit = 100 } = req.body;
+    const ANIXO = 'https://anixo.buzz/embed/ani';
+
+    // Animes com episódios mas sem sources do AniXo
+    const animes = await query(`
+      SELECT DISTINCT a.id, a.title, a.external_id
+      FROM anime a
+      JOIN episodes e ON e.anime_id = a.id
+      WHERE a.external_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM episode_sources es
+          JOIN episodes ep2 ON ep2.id = es.episode_id
+          WHERE ep2.anime_id = a.id AND es.provider_name = 'anixo'
+          LIMIT 1
+        )
+      ORDER BY a.popularity DESC NULLS LAST
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    let processed = 0, totalAdded = 0, failed = 0;
+    const results = [];
+
+    for (const anime of animes.rows) {
+      // MAL → AniList via AniList GraphQL
+      let anilistId = null;
+      try {
+        await new Promise(r => setTimeout(r, 700));
+        const gql = await axios.post('https://graphql.anilist.co',
+          { query: `query($m:Int){Media(idMal:$m,type:ANIME){id}}`, variables: { m: parseInt(anime.external_id) } },
+          { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
+        );
+        anilistId = gql.data?.data?.Media?.id;
+      } catch { /* falha silenciosa */ }
+
+      if (!anilistId) { failed++; continue; }
+
+      // Busca episódios
+      const eps = await query(
+        `SELECT id, episode_number FROM episodes WHERE anime_id=$1 AND is_hidden=false ORDER BY episode_number`,
+        [anime.id]
+      );
+
+      let added = 0;
+      for (const ep of eps.rows) {
+        const epNum = Math.floor(ep.episode_number);
+        if (epNum <= 0) continue;
+
+        // Remove sources antigas do anibunker para este episódio
+        await query(`DELETE FROM episode_sources WHERE episode_id=$1 AND provider_name='anibunker'`, [ep.id]).catch(() => {});
+
+        // Insere sub (legendado)
+        const r1 = await query(
+          `INSERT INTO episode_sources (episode_id, label, source_type, url, quality, language, is_default, provider_name)
+           VALUES ($1, 'Legendado', 'embed', $2, 'auto', 'legendado', true, 'anixo')
+           ON CONFLICT DO NOTHING RETURNING id`,
+          [ep.id, `${ANIXO}/${anilistId}/${epNum}/sub`]
+        );
+        // Insere dub (dublado)
+        const r2 = await query(
+          `INSERT INTO episode_sources (episode_id, label, source_type, url, quality, language, is_default, provider_name)
+           VALUES ($1, 'Dublado', 'embed', $2, 'auto', 'dublado', false, 'anixo')
+           ON CONFLICT DO NOTHING RETURNING id`,
+          [ep.id, `${ANIXO}/${anilistId}/${epNum}/dub`]
+        );
+        added += (r1.rowCount || 0) + (r2.rowCount || 0);
+      }
+
+      totalAdded += added;
+      processed++;
+      results.push({ title: anime.title, anilistId, episodesUpdated: eps.rows.length, sourcesAdded: added });
+    }
+
+    const stats = await query(`SELECT COUNT(*) FROM episode_sources WHERE provider_name='anixo'`);
+    res.json({
+      processed, failed, totalAdded,
+      totalAnixoSources: parseInt(stats.rows[0].count),
+      results: results.slice(0, 20),
+    });
+  } catch (err) { next(err); }
+});
+
+// ── Manutenção: limpa duplicados ─────────────────────────────router.post('/maintenance/clean-duplicates', async (req, res, next) => {
   try {
     const before = await query('SELECT COUNT(*) FROM anime');
     await query(`DELETE FROM anime_genres WHERE anime_id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY external_id ORDER BY (CASE WHEN cover_url IS NOT NULL AND cover_url!='' THEN 0 ELSE 1 END), popularity DESC NULLS LAST, created_at ASC) rn FROM anime WHERE external_id IS NOT NULL) t WHERE rn > 1)`);
