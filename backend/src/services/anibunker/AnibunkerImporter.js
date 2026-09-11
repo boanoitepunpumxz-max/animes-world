@@ -181,9 +181,12 @@ async function runAnalysis(jobId, isDryRun) {
         continue;
       }
 
-      // Gera slug principal (usa title_english se disponível, senão title)
-      const baseTitle = anime.title_english || anime.title;
-      const slug = titleToSlug(baseTitle);
+      // Gera slug principal
+      // O Anibunker usa o título japonês/romaji para os slugs
+      // Ex: "Shingeki no Kyojin" → "shingeki-no-kyojin" (NÃO "attack-on-titan")
+      // Usa: title romaji > title original > title_english como fallback final
+      const slugTitle = anime.title_romaji || anime.title || anime.title_english;
+      const slug = titleToSlug(slugTitle);
 
       // Busca total de eps via Jikan (para enriquecer o mapeamento)
       let totalEps = anime.episodes_count || 0;
@@ -210,7 +213,7 @@ async function runAnalysis(jobId, isDryRun) {
                                    THEN 'synced' ELSE 'pending' END,
              episode_count  = EXCLUDED.episode_count,
              updated_at     = NOW()`,
-          [anime.id, PROVIDER, slug, baseTitle, totalEps]
+          [anime.id, PROVIDER, slug, slugTitle, totalEps]
         );
       }
       matched++;
