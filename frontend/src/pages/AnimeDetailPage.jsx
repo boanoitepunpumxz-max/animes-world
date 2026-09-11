@@ -10,7 +10,7 @@ import MainLayout from '../components/layout/MainLayout';
 import SeasonSelector from '../components/anime/SeasonSelector';
 import EpisodeList from '../components/player/EpisodeList';
 import Badge from '../components/ui/Badge';
-import { EpisodeListSkeleton } from '../components/ui/Skeleton';
+import { EpisodeListSkeleton, EpisodeGridSkeleton } from '../components/ui/Skeleton';
 import { animeAPI, episodesAPI, userAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -243,22 +243,40 @@ export default function AnimeDetailPage() {
 
             {activeTab === 'episodes' && (
               <>
-                {/* Seletor de temporada */}
+                {/* Seletor de temporada + contador */}
                 {anime.seasons?.length > 0 && (
-                  <div className="mb-5">
-                    <SeasonSelector seasons={anime.seasons} currentSeason={currentSeason} onChange={setCurrentSeason} />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                    <div className="flex items-center gap-3">
+                      <SeasonSelector
+                        seasons={anime.seasons}
+                        currentSeason={currentSeason}
+                        onChange={setCurrentSeason}
+                      />
+                    </div>
+                    {!loadingEps && episodes.length > 0 && (
+                      <span className="text-sm text-aw-muted flex-shrink-0">
+                        {episodes.length} episódio{episodes.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 )}
 
                 {/* Lista de episódios */}
                 {loadingEps ? (
-                  <EpisodeListSkeleton count={8} />
+                  <EpisodeGridSkeleton count={10} />
                 ) : episodes.length === 0 ? (
-                  <div className="text-center py-10 text-aw-muted text-sm">
-                    Nenhum episódio cadastrado ainda.
+                  <div className="text-center py-16 text-aw-muted text-sm">
+                    <div className="text-5xl mb-4">🎬</div>
+                    <p className="font-medium">Nenhum episódio disponível ainda.</p>
+                    <p className="text-xs text-aw-dim mt-1">Os episódios serão adicionados em breve.</p>
                   </div>
                 ) : (
-                  <EpisodeList episodes={episodes} animeSlug={anime.slug} />
+                  <EpisodeList
+                    episodes={episodes}
+                    animeSlug={anime.slug}
+                    animeCover={anime.cover_url}
+                    variant="grid"
+                  />
                 )}
               </>
             )}

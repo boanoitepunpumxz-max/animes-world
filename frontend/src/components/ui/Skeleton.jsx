@@ -36,6 +36,23 @@ export function EpisodeListSkeleton({ count = 8 }) {
   );
 }
 
+export function EpisodeGridSkeleton({ count = 10 }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="aw-card overflow-hidden animate-pulse">
+          <Skeleton className="w-full aspect-video" />
+          <div className="p-3 space-y-2">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-7 w-full rounded-lg mt-2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ProfileSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
