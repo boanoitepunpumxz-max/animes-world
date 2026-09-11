@@ -130,7 +130,10 @@ router.post('/maintenance/populate-anixo', async (req, res, next) => {
 
     const stats = await query(`SELECT COUNT(*) FROM episode_sources WHERE provider_name='anixo'`);
     res.json({ processed, failed, totalAdded, totalAnixoSources: parseInt(stats.rows[0].count), results: results.slice(0, 20) });
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Retorna erro detalhado para diagnóstico (rota admin protegida)
+    res.status(500).json({ error: err.message, stack: err.stack ? err.stack.substring(0, 500) : null });
+  }
 });
 
 // Manutencao: limpa duplicados
