@@ -134,14 +134,29 @@ export default function VideoPlayer({
     >
       {/* Player */}
       {isEmbed ? (
-        <iframe
-          src={currentSource?.url}
-          className="w-full h-full"
-          allowFullScreen
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-          title="Player"
-        />
+        <div className="w-full h-full relative bg-black flex flex-col">
+          <iframe
+            src={currentSource?.url}
+            className="w-full h-full border-0"
+            allowFullScreen
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            referrerPolicy="no-referrer-when-downgrade"
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-forms allow-popups"
+            title="Player Anibunker"
+            onError={() => {}}
+          />
+          {/* Fallback: botão se iframe não carregar */}
+          <div className="absolute bottom-4 right-4 z-10">
+            <a
+              href={currentSource?.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-aw-purple text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors shadow-lg opacity-70 hover:opacity-100"
+            >
+              ↗ Abrir no Anibunker
+            </a>
+          </div>
+        </div>
       ) : (
         <ReactPlayer
           ref={playerRef}
