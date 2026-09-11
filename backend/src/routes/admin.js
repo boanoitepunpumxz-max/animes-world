@@ -220,3 +220,5 @@ router.post('/sync/trigger', require('../services/anilistService').triggerSync);
 module.exports = router;
 
 // redeploy trigger
+
+// redeploy trigger
