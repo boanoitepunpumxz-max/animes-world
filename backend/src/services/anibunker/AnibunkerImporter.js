@@ -217,6 +217,10 @@ async function runAnalysis(jobId, isDryRun) {
         );
       }
       matched++;
+      // Atualiza contador matched no job a cada 50 animes
+      if (matched % 50 === 0) {
+        await updateJob(jobId, { matched });
+      }
     } catch (e) {
       errors++;
       await log(jobId, 'ERROR', `${anime.title} — erro: ${e.message}`, anime.id);
